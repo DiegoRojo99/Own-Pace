@@ -26,6 +26,7 @@ vi.mock("./db", () => {
 });
 
 const startedAt = "2026-03-19T13:05:00Z";
+const route = "_p~iF~ps|U_ulLnnqC";
 const newest = Date.parse(startedAt) / 1000;
 const state = {
   syncCursor: null,
@@ -155,7 +156,7 @@ it("updates an older imported run name from the rotating activity page", async (
   });
   expect(mocks.updateRun).toHaveBeenCalledWith({
     where: { userId_stravaId: { userId: "runner", stravaId } },
-    data: { name: "Renamed in Strava" },
+    data: { name: "Renamed in Strava", summaryPolyline: null },
   });
   expect(mocks.updateUser).toHaveBeenCalledWith(expect.objectContaining({
     data: expect.objectContaining({ activityRefreshBefore: null, activityRefreshPage: 1 }),
@@ -186,13 +187,13 @@ it("leaves paging untouched after an upstream failure", async () => {
   expect(mocks.updateUser).not.toHaveBeenCalled();
 });
 
-it("imports Walk activities from the regular sync without duplicating the first page", async () => {
-  mocks.fetch.mockResolvedValue([{ ...run, type: "Run", sport_type: "Walk" }]);
+it("imports Walk activities and their route summaries without duplicating the first page", async () => {
+  mocks.fetch.mockResolvedValue([{ ...run, type: "Run", sport_type: "Walk", map: { summary_polyline: route } }]);
 
   await expect(syncRuns("runner")).resolves.toMatchObject({ count: 1 });
   expect(mocks.fetch).toHaveBeenCalledOnce();
   expect(mocks.createRuns).toHaveBeenCalledWith({
-    data: [expect.objectContaining({ userId: "runner", stravaId: BigInt(run.id), type: "Walk", distance: run.distance })],
+    data: [expect.objectContaining({ userId: "runner", stravaId: BigInt(run.id), type: "Walk", distance: run.distance, summaryPolyline: route })],
     skipDuplicates: true,
   });
 });
@@ -207,10 +208,30 @@ it("backfills only missing walks from older pages and refreshes existing walk na
   await expect(syncRuns("runner")).resolves.toMatchObject({ count: 1, refreshed: 1 });
   expect(mocks.updateRun).toHaveBeenCalledWith({
     where: { userId_stravaId: { userId: "runner", stravaId: 124n } },
-    data: { name: "River walk" },
+    data: { name: "River walk", summaryPolyline: null },
   });
   expect(mocks.createRuns).toHaveBeenCalledWith({
     data: [expect.objectContaining({ userId: "runner", stravaId: 123n, type: "Walk", name: "Park walk" })],
     skipDuplicates: true,
+  });
+});
+
+it("refreshes older GPS routes even when activity names did not change", async () => {
+  const updated = { ...run, map: { summary_polyline: route } };
+  const removed = { ...run, id: "123", map: { summary_polyline: null } };
+  mocks.findUser.mockResolvedValue({ ...state, syncCursor: newest + 3600 });
+  mocks.fetch.mockResolvedValueOnce([]).mockResolvedValueOnce([updated, removed]);
+  mocks.findRuns.mockResolvedValue([
+    { stravaId: BigInt(run.id), name: run.name, summaryPolyline: null },
+    { stravaId: 123n, name: run.name, summaryPolyline: route },
+  ]);
+  await expect(syncRuns("runner")).resolves.toMatchObject({ count: 0, refreshed: 0 });
+  expect(mocks.updateRun).toHaveBeenNthCalledWith(1, {
+    where: { userId_stravaId: { userId: "runner", stravaId: BigInt(run.id) } },
+    data: { name: run.name, summaryPolyline: route },
+  });
+  expect(mocks.updateRun).toHaveBeenNthCalledWith(2, {
+    where: { userId_stravaId: { userId: "runner", stravaId: 123n } },
+    data: { name: run.name, summaryPolyline: null },
   });
 });

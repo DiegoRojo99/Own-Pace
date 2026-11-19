@@ -8,7 +8,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   const user = await requireUser()
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <a
         href="#main-content"
         className="sr-only z-20 rounded-lg bg-card p-3 focus:not-sr-only focus:absolute focus:top-2 focus:left-2"
@@ -37,9 +37,9 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
           </Link>
         </div>
       </header>
-      <main id="main-content" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <main id="main-content" className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8 has-[>.activity-map-page]:flex has-[>.activity-map-page]:max-w-none has-[>.activity-map-page]:flex-1 has-[>.activity-map-page]:p-0">
         {children}
       </main>
-    </>
+    </div>
   )
 }

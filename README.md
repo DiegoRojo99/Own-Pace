@@ -4,6 +4,7 @@ Own Pace is a private running log that brings your Strava stats and kilometre sp
 
 - Sign in with Strava and sync runs and walks in batches. Press **Sync Strava activities** again if there are more activities to check.
 - Browse your walk history and see your five longest imported walks on the **Walks** page. Older walks are picked up as sync rotates through your activity history.
+- View imported runs and walks with GPS routes together on the full-width **Map** page. Older routes appear as you sync through your history. The OpenStreetMap street layer is off by default; enabling it shares the visible area with OpenStreetMap.
 - See the last 12 weeks of running distance, all-time totals, longest run, and this month versus last month.
 - Browse and filter your runs by name, date, distance, and pace. Open a run to see its route and kilometre splits. Routes are fetched from Strava on each visit; splits are saved after the first visit. Map tiles are loaded from OpenStreetMap, which can see the area displayed.
 - Review monthly distance, pace, and heart-rate trends across the last 12 calendar months.
@@ -43,7 +44,7 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to run 
 3. Run `npx prisma migrate deploy` with the production `DIRECT_URL` from a trusted environment before serving traffic. The build generates the Prisma client but does not apply schema changes.
 4. Set the Strava Authorization Callback Domain to your stable production hostname (no scheme or path). Its callback URL is `https://YOUR_HOST/api/auth/callback/strava`. Verify the consent screen includes activity access and that a returning athlete can reconnect.
 
-OAuth access tokens are used only on the server. Incremental sync imports newer runs and walks. It also scans one page per sync as it cycles through activity history, refreshing existing names and importing previously skipped walks. It does not apply other older Strava edits or deletions. The shared Strava quota depends on the limits assigned to your API app.
+OAuth access tokens are used only on the server. Incremental sync imports newer runs and walks. It also scans one page per sync as it cycles through activity history, refreshing names and GPS route summaries and importing previously skipped walks. It does not apply other older Strava edits or deletions. The shared Strava quota depends on the limits assigned to your API app.
 
 ## Roadmap
 

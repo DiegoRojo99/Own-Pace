@@ -10,6 +10,7 @@ const links = [
   { href: "/trends", label: "Trends" },
   { href: "/runs", label: "Runs" },
   { href: "/walks", label: "Walks" },
+  { href: "/map", label: "Map" },
   { href: "/milestones", label: "Personal Records" },
   { href: "/settings", label: "Settings" },
 ]

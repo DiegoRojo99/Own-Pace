@@ -38,6 +38,7 @@ export async function syncRunsAction(): Promise<SyncState> {
     revalidatePath("/dashboard");
     revalidatePath("/runs");
     revalidatePath("/walks");
+    revalidatePath("/map");
     revalidatePath("/milestones");
   }
 }

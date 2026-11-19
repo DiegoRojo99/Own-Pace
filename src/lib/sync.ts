@@ -20,6 +20,7 @@ type SummaryActivity = {
   total_elevation_gain: number;
   average_heartrate?: number;
   average_speed: number;
+  map?: { summary_polyline?: string | null } | null;
 };
 
 function activityId(id: SummaryActivity["id"]) {
@@ -54,7 +55,16 @@ function activitySummary(activity: SummaryActivity, type: string, startDate: Dat
     elevationGain: activity.total_elevation_gain,
     averageHeartrate: activity.average_heartrate ?? null,
     averageSpeed: activity.average_speed,
+    summaryPolyline: summaryPolyline(activity),
   };
+}
+
+function summaryPolyline(activity: SummaryActivity) {
+  const map = activity.map;
+  if (map != null && (typeof map !== "object" || Array.isArray(map))) throw new StravaError("upstream");
+  const value = map?.summary_polyline;
+  if (value != null && (typeof value !== "string" || value.length > 200_000)) throw new StravaError("upstream");
+  return value || null;
 }
 
 export async function syncRuns(userId: string): Promise<{ count: number; more: boolean; refreshed: number; refreshMore: boolean }> {
@@ -170,17 +180,20 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
     if (olderActivities.size) {
       const historicalRows = await tx.activity.findMany({
         where: { userId, stravaId: { in: [...olderActivities.keys()] } },
-        select: { stravaId: true, name: true },
+        select: { stravaId: true, name: true, summaryPolyline: true },
       });
       for (const existing of historicalRows) {
-        const name = olderActivities.get(existing.stravaId)?.activity.name;
+        const activity = olderActivities.get(existing.stravaId)?.activity;
         olderActivities.delete(existing.stravaId);
-        if (name === undefined || name === existing.name) continue;
+        if (!activity) continue;
+        const { name } = activity;
+        const polyline = summaryPolyline(activity);
+        if (name === existing.name && polyline === existing.summaryPolyline) continue;
         await tx.activity.update({
           where: { userId_stravaId: { userId, stravaId: existing.stravaId } },
-          data: { name },
+          data: { name, summaryPolyline: polyline },
         });
-        refreshed++;
+        if (name !== existing.name) refreshed++;
       }
       // Older walks may have been skipped before the app supported them.
       for (const [stravaId, { activity, type }] of olderActivities) {
