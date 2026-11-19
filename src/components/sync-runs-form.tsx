@@ -11,7 +11,7 @@ export function SyncRunsForm() {
   return (
     <form action={action} className="flex flex-wrap items-center gap-3">
       <Button type="submit" disabled={pending}>
-        {pending ? "Syncing runs…" : "Sync Strava runs"}
+        {pending ? "Syncing activities…" : "Sync Strava activities"}
       </Button>
       <p className={`max-w-72 text-sm ${state.error ? "text-destructive" : "text-muted-foreground"}`} role="status" aria-live="polite">
         {state.message}

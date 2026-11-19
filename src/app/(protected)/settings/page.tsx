@@ -15,7 +15,7 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Strava account</CardTitle>
-          <CardDescription>{user.name ? `Signed in as ${user.name}.` : "Signed in with Strava."} Sync to import new runs.</CardDescription>
+          <CardDescription>{user.name ? `Signed in as ${user.name}.` : "Signed in with Strava."} Sync to import runs and walks.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-start gap-3">
           <SyncRunsForm />
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle>Delete my data</CardTitle>
           <CardDescription>
-            This permanently removes your account and imported runs from Own Pace. It doesn&apos;t delete any activities on Strava.
+            This permanently removes your account and imported activities from Own Pace. It doesn&apos;t delete any activities on Strava.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,4 +1,5 @@
 import "server-only";
+import { runTypes } from "./activity-types";
 import { db } from "./db";
 import { calculateStravaMilestones, calculateSplitMilestones, milestoneDistances } from "./milestone-calculation";
 import { StravaError, stravaFetch, stravaIdToPath } from "./strava";
@@ -61,8 +62,9 @@ async function getEfforts(userId: string, activity: Activity): Promise<{ efforts
 }
 
 export async function calculateMilestoneBatch(userId: string) {
+  const runs = { userId, type: { in: runTypes } };
   const activities = await db.activity.findMany({
-    where: { userId, milestoneChecked: false },
+    where: { ...runs, milestoneChecked: false },
     select: {
       id: true, stravaId: true, distance: true,
       splits: { orderBy: { index: "asc" }, select: { index: true, distance: true, movingTime: true, elapsedTime: true } },
@@ -75,7 +77,7 @@ export async function calculateMilestoneBatch(userId: string) {
     const { efforts, unavailable } = await getEfforts(userId, activity);
     const claimed = await db.$transaction(async (tx) => {
       const claim = await tx.activity.updateMany({
-        where: { id: activity.id, userId, milestoneChecked: false },
+        where: { id: activity.id, ...runs, milestoneChecked: false },
         data: { milestoneChecked: true, milestoneUnavailable: unavailable },
       });
       if (!claim.count) return false;
@@ -89,14 +91,15 @@ export async function calculateMilestoneBatch(userId: string) {
     });
     if (claimed) checked++;
   }
-  const remaining = await db.activity.count({ where: { userId, milestoneChecked: false } });
+  const remaining = await db.activity.count({ where: { ...runs, milestoneChecked: false } });
   return { checked, remaining };
 }
 
 export async function getMilestones(userId: string) {
+  const runs = { userId, type: { in: runTypes } };
   const [efforts, pending, unavailable, total] = await Promise.all([
     db.milestoneEffort.findMany({
-      where: { activity: { userId } },
+      where: { activity: runs },
       select: {
         distanceKey: true,
         duration: true,
@@ -106,9 +109,9 @@ export async function getMilestones(userId: string) {
       },
       orderBy: [{ duration: "asc" }, { activity: { startDate: "desc" } }, { activityId: "asc" }],
     }),
-    db.activity.count({ where: { userId, milestoneChecked: false } }),
-    db.activity.count({ where: { userId, milestoneChecked: true, milestoneUnavailable: true } }),
-    db.activity.count({ where: { userId } }),
+    db.activity.count({ where: { ...runs, milestoneChecked: false } }),
+    db.activity.count({ where: { ...runs, milestoneChecked: true, milestoneUnavailable: true } }),
+    db.activity.count({ where: runs }),
   ]);
   return {
     pending,
@@ -120,7 +123,7 @@ export async function getMilestones(userId: string) {
 
 export async function retryUnavailableMilestones(userId: string) {
   return db.activity.updateMany({
-    where: { userId, milestoneChecked: true, milestoneUnavailable: true },
+    where: { userId, type: { in: runTypes }, milestoneChecked: true, milestoneUnavailable: true },
     data: { milestoneChecked: false, milestoneUnavailable: false },
   });
 }

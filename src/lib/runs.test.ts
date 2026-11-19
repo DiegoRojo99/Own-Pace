@@ -25,6 +25,7 @@ vi.mock("./db", () => {
 });
 
 const owner = { userId: "runner", id: "local-run" };
+const runTypeFilter = { in: ["Run", "TrailRun"] };
 const stravaId = 9007199254740993n;
 
 beforeEach(() => {
@@ -33,17 +34,17 @@ beforeEach(() => {
   mocks.updateRun.mockResolvedValue({ count: 1 });
 });
 
-it("scopes list, detail, and split fetch to the user", async () => {
+it("scopes list, detail, and split fetch to the user's running activities", async () => {
   mocks.findRun.mockResolvedValue(null);
   await getRuns(owner.userId);
   await getRun(owner.userId, owner.id);
   await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toBeNull();
-  expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: owner.userId } }));
+  expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: owner.userId, type: runTypeFilter } }));
   expect(mocks.findRun).toHaveBeenNthCalledWith(1, {
-    where: owner,
+    where: { ...owner, type: runTypeFilter },
     include: { splits: { orderBy: { index: "asc" } } },
   });
-  expect(mocks.findRun).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: owner }));
+  expect(mocks.findRun).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: { ...owner, type: runTypeFilter } }));
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
 
@@ -55,7 +56,7 @@ it("claims before inserting metric splits and uses a lossless Strava ID in the p
   await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({ route: null });
   expect(mocks.fetch).toHaveBeenCalledWith(owner.userId, "/activities/9007199254740993");
   expect(mocks.updateRun).toHaveBeenCalledWith({
-    where: { ...owner, detailFetched: false }, data: { detailFetched: true },
+    where: { ...owner, type: runTypeFilter, detailFetched: false }, data: { detailFetched: true },
   });
   expect(mocks.updateRun.mock.invocationCallOrder[0]).toBeLessThan(mocks.createSplits.mock.invocationCallOrder[0]);
   expect(mocks.createSplits).toHaveBeenCalledWith({

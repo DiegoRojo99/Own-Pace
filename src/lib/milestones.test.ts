@@ -38,7 +38,7 @@ it("stores Strava's own best effort, without fetching or interpolating streams",
   mocks.fetch.mockResolvedValue({ best_efforts: [{ distance: 1000, moving_time: 465, elapsed_time: 465 }] });
   await expect(calculateMilestoneBatch("runner")).resolves.toEqual({ checked: 1, remaining: 0 });
   expect(mocks.findRuns).toHaveBeenCalledWith(expect.objectContaining({
-    where: { userId: "runner", milestoneChecked: false }, take: 5,
+    where: { userId: "runner", type: { in: ["Run", "TrailRun"] }, milestoneChecked: false }, take: 5,
   }));
   expect(mocks.fetch).toHaveBeenCalledWith("runner", "/activities/9007199254740993");
   expect(mocks.createEfforts).toHaveBeenCalledWith({
@@ -138,9 +138,10 @@ it("loads efforts and counts scoped to the current user", async () => {
   mocks.countRuns.mockResolvedValueOnce(2).mockResolvedValueOnce(1).mockResolvedValueOnce(10);
   const result = await getMilestones("runner");
   expect(mocks.findEfforts).toHaveBeenCalledWith(expect.objectContaining({
-    where: { activity: { userId: "runner" } },
+    where: { activity: { userId: "runner", type: { in: ["Run", "TrailRun"] } } },
     orderBy: [{ duration: "asc" }, { activity: { startDate: "desc" } }, { activityId: "asc" }],
   }));
+  expect(mocks.countRuns).toHaveBeenLastCalledWith({ where: { userId: "runner", type: { in: ["Run", "TrailRun"] } } });
   expect(result).toMatchObject({ pending: 2, unavailable: 1, total: 10 });
   expect(result.efforts[0].duration).toBe(250);
 });
@@ -160,7 +161,7 @@ it("keeps earlier results when a later run hits the rate limit", async () => {
 it("retries unavailable runs only for the current user", async () => {
   await retryUnavailableMilestones("runner");
   expect(mocks.updateRuns).toHaveBeenCalledWith({
-    where: { userId: "runner", milestoneChecked: true, milestoneUnavailable: true },
+    where: { userId: "runner", type: { in: ["Run", "TrailRun"] }, milestoneChecked: true, milestoneUnavailable: true },
     data: { milestoneChecked: false, milestoneUnavailable: false },
   });
 });

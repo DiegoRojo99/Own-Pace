@@ -185,3 +185,32 @@ it("leaves paging untouched after an upstream failure", async () => {
   await expect(syncRuns("runner")).rejects.toThrow("network");
   expect(mocks.updateUser).not.toHaveBeenCalled();
 });
+
+it("imports Walk activities from the regular sync without duplicating the first page", async () => {
+  mocks.fetch.mockResolvedValue([{ ...run, type: "Run", sport_type: "Walk" }]);
+
+  await expect(syncRuns("runner")).resolves.toMatchObject({ count: 1 });
+  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(mocks.createRuns).toHaveBeenCalledWith({
+    data: [expect.objectContaining({ userId: "runner", stravaId: BigInt(run.id), type: "Walk", distance: run.distance })],
+    skipDuplicates: true,
+  });
+});
+
+it("backfills only missing walks from older pages and refreshes existing walk names", async () => {
+  const olderWalk = { ...run, id: "123", name: "Park walk", type: "Walk", sport_type: undefined };
+  const renamedWalk = { ...olderWalk, id: "124", name: "River walk" };
+  mocks.findUser.mockResolvedValue({ ...state, syncCursor: newest + 3600 });
+  mocks.fetch.mockResolvedValueOnce([]).mockResolvedValueOnce([olderWalk, renamedWalk, run]);
+  mocks.findRuns.mockResolvedValue([{ stravaId: 124n, name: "Old walk name" }]);
+
+  await expect(syncRuns("runner")).resolves.toMatchObject({ count: 1, refreshed: 1 });
+  expect(mocks.updateRun).toHaveBeenCalledWith({
+    where: { userId_stravaId: { userId: "runner", stravaId: 124n } },
+    data: { name: "River walk" },
+  });
+  expect(mocks.createRuns).toHaveBeenCalledWith({
+    data: [expect.objectContaining({ userId: "runner", stravaId: 123n, type: "Walk", name: "Park walk" })],
+    skipDuplicates: true,
+  });
+});

@@ -28,19 +28,16 @@ export async function syncRunsAction(): Promise<SyncState> {
     const { count, more, refreshed, refreshMore } = await syncRuns(id);
     return {
       message: [
-        `Synced ${count} new ${count === 1 ? "run" : "runs"}.`,
-        `Updated names for ${refreshed} existing ${refreshed === 1 ? "run" : "runs"}.`,
-        ...(more ? ["More activities are available; sync again to continue."] : []),
-        refreshMore
-          ? "Name refresh is continuing through older activities; sync again to continue."
-          : "Name refresh reached the end of activity history.",
+        `Imported ${count} ${count === 1 ? "activity" : "activities"} and updated ${refreshed} ${refreshed === 1 ? "name" : "names"}.`,
+        ...(more || refreshMore ? ["Sync again to check more activities."] : []),
       ].join(" "),
     };
   } catch (error) {
-    return stravaFailure(error, "Couldn’t finish syncing runs. Any saved progress will resume next time.");
+    return stravaFailure(error, "Couldn’t finish syncing activities. Any saved progress will resume next time.");
   } finally {
     revalidatePath("/dashboard");
     revalidatePath("/runs");
+    revalidatePath("/walks");
     revalidatePath("/milestones");
   }
 }

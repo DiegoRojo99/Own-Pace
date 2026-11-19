@@ -1,4 +1,5 @@
 import "server-only";
+import { runTypes } from "./activity-types";
 import { db } from "./db";
 import { decodePolyline } from "./polyline";
 import { StravaError, stravaFetch, stravaIdToPath } from "./strava";
@@ -15,7 +16,7 @@ type MetricSplit = {
 
 export function getRuns(userId: string) {
   return db.activity.findMany({
-    where: { userId },
+    where: { userId, type: { in: runTypes } },
     orderBy: [{ startDate: "desc" }, { id: "desc" }],
   });
 }
@@ -23,13 +24,13 @@ export function getRuns(userId: string) {
 export function getRun(userId: string, id: string) {
   // The URL supplies an ID, not authorization to read it.
   return db.activity.findUnique({
-    where: { id, userId },
+    where: { id, userId, type: { in: runTypes } },
     include: { splits: { orderBy: { index: "asc" } } },
   });
 }
 
 export async function fetchRunDetails(userId: string, id: string): Promise<{ route: [number, number][] | null } | null> {
-  const where = { id, userId };
+  const where = { id, userId, type: { in: runTypes } };
   // Resolve the upstream activity only after checking local ownership.
   const run = await db.activity.findUnique({
     where,

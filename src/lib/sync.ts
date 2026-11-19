@@ -1,11 +1,12 @@
 import "server-only";
+import { runTypes, walkType } from "./activity-types";
 import { db } from "./db";
 import { StravaError, stravaFetch } from "./strava";
 
 const PAGE_SIZE = 100;
 const PRISMA_INT_MAX = 2_147_483_647;
 const STRAVA_ID_MAX = 9_223_372_036_854_775_807n;
-const RUN_TYPES = new Set(["Run", "TrailRun"]);
+const importedTypes = new Set([...runTypes, walkType]);
 
 type SummaryActivity = {
   id: number | string;
@@ -28,6 +29,32 @@ function activityId(id: SummaryActivity["id"]) {
     if (value <= STRAVA_ID_MAX) return value;
   }
   throw new StravaError("upstream");
+}
+
+function activityStart(activity: SummaryActivity) {
+  if (!activity || typeof activity.name !== "string" || typeof activity.start_date !== "string") {
+    throw new StravaError("upstream");
+  }
+  const startDate = new Date(activity.start_date);
+  const timestamp = Math.floor(startDate.getTime() / 1000);
+  if (!Number.isInteger(timestamp) || timestamp < 0 || timestamp > PRISMA_INT_MAX) {
+    throw new StravaError("upstream");
+  }
+  return { startDate, timestamp };
+}
+
+function activitySummary(activity: SummaryActivity, type: string, startDate: Date) {
+  return {
+    name: activity.name,
+    type,
+    startDate,
+    distance: activity.distance,
+    movingTime: activity.moving_time,
+    elapsedTime: activity.elapsed_time,
+    elevationGain: activity.total_elevation_gain,
+    averageHeartrate: activity.average_heartrate ?? null,
+    averageSpeed: activity.average_speed,
+  };
 }
 
 export async function syncRuns(userId: string): Promise<{ count: number; more: boolean; refreshed: number; refreshMore: boolean }> {
@@ -69,39 +96,23 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
   if (!Array.isArray(refreshActivities)) throw new StravaError("upstream");
 
   let newest = state.syncNewest ?? state.syncCursor;
-  const runs = activities.flatMap((activity) => {
-    if (!activity || typeof activity.name !== "string" || typeof activity.start_date !== "string") {
-      throw new StravaError("upstream");
-    }
-    const startDate = new Date(activity.start_date);
-    const timestamp = Math.floor(startDate.getTime() / 1000);
-    if (!Number.isInteger(timestamp) || timestamp < 0 || timestamp > PRISMA_INT_MAX) {
-      throw new StravaError("upstream");
-    }
-    // All sports move the cursor, even though only runs are cached.
+  const summaries = activities.flatMap((activity) => {
+    const { startDate, timestamp } = activityStart(activity);
+    // All sports move the cursor, even though only runs and walks are cached.
     newest = newest == null ? timestamp : Math.max(newest, timestamp);
     const type = activity.sport_type ?? activity.type;
-    if (!RUN_TYPES.has(type)) return [];
-
-    return [[activityId(activity.id), {
-      name: activity.name,
-      type,
-      startDate,
-      distance: activity.distance,
-      movingTime: activity.moving_time,
-      elapsedTime: activity.elapsed_time,
-      elevationGain: activity.total_elevation_gain,
-      averageHeartrate: activity.average_heartrate ?? null,
-      averageSpeed: activity.average_speed,
-    }] as const];
+    if (!importedTypes.has(type)) return [];
+    return [[activityId(activity.id), activitySummary(activity, type, startDate)] as const];
   });
   const more = activities.length >= PAGE_SIZE;
-  const refreshNames = refreshActivities.flatMap((activity) => {
+  const currentIds = new Set(summaries.map(([stravaId]) => stravaId));
+  const olderActivities = new Map((samePage ? [] : refreshActivities).flatMap((activity) => {
     if (!activity || typeof activity.name !== "string") throw new StravaError("upstream");
     const type = activity.sport_type ?? activity.type;
-    if (!RUN_TYPES.has(type)) return [];
-    return [[activityId(activity.id), activity.name] as const];
-  });
+    if (!importedTypes.has(type)) return [];
+    const stravaId = activityId(activity.id);
+    return currentIds.has(stravaId) ? [] : [[stravaId, { activity, type }] as const];
+  }));
   const refreshMore = refreshActivities.length >= PAGE_SIZE;
 
   return db.$transaction(async (tx) => {
@@ -140,7 +151,7 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
     }
 
     // The per-user claim serializes writers; replayed activities refresh cached summaries without counting as new.
-    const byId = new Map(runs);
+    const byId = new Map(summaries);
     let refreshed = 0;
     const existing = byId.size ? await tx.activity.findMany({
       where: { userId, stravaId: { in: [...byId.keys()] } },
@@ -156,20 +167,14 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
       });
       byId.delete(stravaId);
     }
-    const count = byId.size ? (await tx.activity.createMany({
-      data: [...byId].map(([stravaId, summary]) => ({ userId, stravaId, ...summary })),
-      skipDuplicates: true,
-    })).count : 0;
-
-    const currentIds = new Set(runs.map(([stravaId]) => stravaId));
-    const olderNames = new Map(refreshNames.filter(([stravaId]) => !currentIds.has(stravaId)));
-    if (olderNames.size) {
-      const existingNames = await tx.activity.findMany({
-        where: { userId, stravaId: { in: [...olderNames.keys()] } },
+    if (olderActivities.size) {
+      const historicalRows = await tx.activity.findMany({
+        where: { userId, stravaId: { in: [...olderActivities.keys()] } },
         select: { stravaId: true, name: true },
       });
-      for (const existing of existingNames) {
-        const name = olderNames.get(existing.stravaId);
+      for (const existing of historicalRows) {
+        const name = olderActivities.get(existing.stravaId)?.activity.name;
+        olderActivities.delete(existing.stravaId);
         if (name === undefined || name === existing.name) continue;
         await tx.activity.update({
           where: { userId_stravaId: { userId, stravaId: existing.stravaId } },
@@ -177,7 +182,16 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
         });
         refreshed++;
       }
+      // Older walks may have been skipped before the app supported them.
+      for (const [stravaId, { activity, type }] of olderActivities) {
+        if (type !== walkType) continue;
+        byId.set(stravaId, activitySummary(activity, type, activityStart(activity).startDate));
+      }
     }
+    const count = byId.size ? (await tx.activity.createMany({
+      data: [...byId].map(([stravaId, summary]) => ({ userId, stravaId, ...summary })),
+      skipDuplicates: true,
+    })).count : 0;
     return { count, more, refreshed, refreshMore };
   }, { timeout: 10_000 });
 }
