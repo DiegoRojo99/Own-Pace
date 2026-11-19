@@ -5,7 +5,7 @@ import { useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type
 
 import { PageHeading } from "@/components/page-heading"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatDuration } from "@/lib/format"
+import { formatDuration, formatPace } from "@/lib/format"
 import { milestonePeriods, milestoneRecords, type MilestoneEffort } from "@/lib/milestone-periods"
 
 let clock = Date.now()
@@ -75,7 +75,7 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
       {children}
       <p className="text-sm text-muted-foreground">Periods use UTC; run dates are shown in your device&apos;s local timezone. The last 12 months and 90 days are rolling periods. Complete-split times cover at least the milestone distance and up to 0.5% more.</p>
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${selected}`} tabIndex={0} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {records.map(({ key, label, periods }) => {
+        {records.map(({ key, label, meters, periods }) => {
           const period = periods.find((item) => item.key === selected)
           if (!period) throw new Error("Unknown milestone period")
           return (
@@ -89,6 +89,7 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
                 ) : period.effort ? (
                   <>
                     <p className="text-2xl font-bold tabular-nums">{formatDuration(period.effort.duration)}</p>
+                    <p className="mt-1 text-sm tabular-nums text-muted-foreground">Pace: {formatPace(meters, period.effort.duration)}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {period.effort.timeBasis === "MOVING" ? "Moving time" : "Elapsed time"}
                       {" · "}{period.effort.source === "SPLITS" ? "Complete splits" : "Strava best effort"}
