@@ -29,6 +29,21 @@ describe("milestone periods", () => {
     expect(milestoneRecords(efforts, now)[1].periods.every((period) => period.effort === null)).toBe(true);
   });
 
+  it("shows the fastest effort before each selected record and its improvement", () => {
+    const now = new Date("2026-07-01T12:00:00Z");
+    const records = milestoneRecords([
+      effort(300, new Date("2025-01-01T00:00:00Z")),
+      effort(280, new Date("2025-06-01T00:00:00Z")),
+      effort(260, new Date("2026-06-01T00:00:00Z")),
+    ], now);
+
+    expect(records[0].periods[0]).toMatchObject({
+      effort: { duration: 260 },
+      previousEffort: { duration: 280 },
+    });
+    expect(records[0].periods[0].previousEffort!.duration - records[0].periods[0].effort!.duration).toBe(20);
+  });
+
   it("includes cutoff instants, excludes earlier and future runs, and uses UTC year boundaries", () => {
     const now = new Date("2026-04-15T12:00:00Z");
     const lastYear = new Date("2025-04-15T12:00:00Z");

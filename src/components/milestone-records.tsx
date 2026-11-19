@@ -47,9 +47,9 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
   return (
     <div className="space-y-7">
       <PageHeading
-        eyebrow="Personal records"
-        title="Milestones"
-        description="Your fastest continuous efforts, using moving time when available."
+        eyebrow="Race distances"
+        title="Personal Records"
+        description="Your fastest efforts and how they compare with your previous best."
         action={
           <div role="tablist" aria-label="Milestone period" className="flex max-w-[calc(100vw-2rem)] flex-wrap gap-1 rounded-lg bg-muted p-1 sm:max-w-none">
             {milestonePeriods.map((period, index) => (
@@ -90,6 +90,18 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
                   <>
                     <p className="text-2xl font-bold tabular-nums">{formatDuration(period.effort.duration)}</p>
                     <p className="mt-1 text-sm tabular-nums text-muted-foreground">Pace: {formatPace(meters, period.effort.duration)}</p>
+                    {period.previousEffort ? (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Previous best: <span className="font-medium tabular-nums text-foreground">{formatDuration(period.previousEffort.duration)}</span>
+                        {" · "}{period.previousEffort.duration > period.effort.duration
+                          ? `Improved by ${formatDuration(period.previousEffort.duration - period.effort.duration)}`
+                          : period.previousEffort.duration < period.effort.duration
+                            ? `${formatDuration(period.effort.duration - period.previousEffort.duration)} slower than previous best`
+                            : "Matched previous best"}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No earlier effort recorded</p>
+                    )}
                     <p className="mt-1 text-xs text-muted-foreground">
                       {period.effort.timeBasis === "MOVING" ? "Moving time" : "Elapsed time"}
                       {" · "}{period.effort.source === "SPLITS" ? "Complete splits" : "Strava best effort"}

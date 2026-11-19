@@ -36,16 +36,28 @@ export function milestoneRecords(efforts: readonly MilestoneEffort[], now: Date 
     const matching = efforts.filter((effort) => effort.distanceKey === distance.key);
     return {
       ...distance,
-      periods: milestonePeriods.map((period) => ({
-        ...period,
-        loading: period.key !== "allTime" && !cutoffs,
-        effort: matching.find((effort) => {
+      periods: milestonePeriods.map((period) => {
+        const periodEfforts = matching.filter((effort) => {
           if (period.key === "allTime") return true;
           if (!cutoffs || !now) return false;
           const date = effort.activity.startDate.getTime();
           return date >= cutoffs[period.key] && date <= now.getTime();
-        }) ?? null,
-      })),
+        })
+        const effort = periodEfforts.sort((a, b) =>
+          a.duration - b.duration || b.activity.startDate.getTime() - a.activity.startDate.getTime(),
+        )[0] ?? null
+        const previousEffort = effort
+          ? matching
+            .filter((item) => item.activity.startDate.getTime() < effort.activity.startDate.getTime())
+            .sort((a, b) => a.duration - b.duration || b.activity.startDate.getTime() - a.activity.startDate.getTime())[0] ?? null
+          : null
+        return {
+          ...period,
+          loading: period.key !== "allTime" && !cutoffs,
+          effort,
+          previousEffort,
+        }
+      }),
     };
   });
 }
