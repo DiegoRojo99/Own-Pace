@@ -73,7 +73,7 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
         }
       />
       {children}
-      <p className="text-sm text-muted-foreground">Periods use UTC; run dates are shown in your device&apos;s local timezone. The last 12 months and 90 days are rolling periods. Complete-split times cover at least the milestone distance and up to 0.5% more.</p>
+      <p className="text-sm text-muted-foreground">Periods use UTC; run dates are shown in your device&apos;s local timezone. The last 12 months and 90 days are rolling periods. Pace uses the milestone distance; complete-split times may cover up to 0.5% more.</p>
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${selected}`} tabIndex={0} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {records.map(({ key, label, meters, periods }) => {
           const period = periods.find((item) => item.key === selected)
