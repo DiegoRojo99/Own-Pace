@@ -5,7 +5,13 @@ import Strava from "next-auth/providers/strava";
 import { db } from "@/lib/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
+  adapter: {
+    ...PrismaAdapter(db),
+    async deleteSession(sessionToken) {
+      // Account deletion may have already cascaded to this session.
+      await db.session.deleteMany({ where: { sessionToken } });
+    },
+  },
   session: { strategy: "database" },
   pages: { signIn: "/", error: "/" },
   providers: [
