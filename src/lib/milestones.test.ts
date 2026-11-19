@@ -77,7 +77,7 @@ it("reports invalid streams or rate limits without marking the run checked", asy
   expect(mocks.updateRuns).not.toHaveBeenCalled();
 });
 
-it("selects best efforts scoped to the current user and exposes empty records", async () => {
+it("loads efforts and counts scoped to the current user", async () => {
   const activity = { id: "run", name: "Run", startDate: new Date("2026-01-01") };
   mocks.findEfforts.mockResolvedValue([
     { distanceKey: "1km", elapsedTime: 250, activity },
@@ -89,9 +89,11 @@ it("selects best efforts scoped to the current user and exposes empty records", 
   expect(result.pending).toBe(2);
   expect(result.unavailable).toBe(1);
   expect(result.total).toBe(10);
-  expect(result.records).toHaveLength(7);
-  expect(result.records[0].effort?.elapsedTime).toBe(250);
-  expect(result.records[1].effort).toBeNull();
+  expect(result.efforts).toHaveLength(2);
+  expect(result.efforts[0].elapsedTime).toBe(250);
+  expect(mocks.findEfforts).toHaveBeenCalledWith(expect.objectContaining({
+    orderBy: [{ elapsedTime: "asc" }, { activity: { startDate: "desc" } }, { activityId: "asc" }],
+  }));
 });
 
 it("keeps earlier results when a later run hits the rate limit", async () => {

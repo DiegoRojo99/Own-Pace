@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./db";
-import { calculateMilestones, milestoneDistances } from "./milestone-calculation";
+import { calculateMilestones } from "./milestone-calculation";
 import { StravaError, stravaFetch, stravaIdToPath } from "./strava";
 
 const BATCH_SIZE = 5;
@@ -83,10 +83,7 @@ export async function getMilestones(userId: string) {
     pending,
     unavailable,
     total,
-    records: milestoneDistances.map((distance) => ({
-      ...distance,
-      effort: efforts.find((effort) => effort.distanceKey === distance.key) ?? null,
-    })),
+    efforts,
   };
 }
 
