@@ -63,24 +63,36 @@ model VerificationToken {
 }
 
 model Activity {
-  id               String   @id @default(cuid())
-  userId           String
-  stravaId         BigInt
-  name             String
-  type             String
-  startDate        DateTime
-  distance         Float
-  movingTime       Int
-  elapsedTime      Int
-  elevationGain    Float
-  averageHeartrate Float?
-  averageSpeed     Float
-  detailFetched    Boolean  @default(false)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  splits           Split[]
+  id                   String            @id @default(cuid())
+  userId               String
+  stravaId             BigInt
+  name                 String
+  type                 String
+  startDate            DateTime
+  distance             Float
+  movingTime           Int
+  elapsedTime          Int
+  elevationGain        Float
+  averageHeartrate     Float?
+  averageSpeed         Float
+  detailFetched        Boolean           @default(false)
+  milestoneChecked     Boolean           @default(false)
+  milestoneUnavailable Boolean           @default(false)
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splits               Split[]
+  milestoneEfforts     MilestoneEffort[]
 
   @@unique([userId, stravaId])
   @@index([userId, startDate])
+}
+
+model MilestoneEffort {
+  activityId  String
+  distanceKey String
+  elapsedTime Float
+  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, distanceKey])
 }
 
 model Split {

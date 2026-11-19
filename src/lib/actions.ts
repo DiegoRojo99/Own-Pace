@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
+import { calculateMilestoneBatch, retryUnavailableMilestones } from "@/lib/milestones";
 import { fetchRunDetails } from "@/lib/runs";
 import { requireUser } from "@/lib/session";
 import { StravaError } from "@/lib/strava";
@@ -46,6 +47,32 @@ export async function loadRunDetailsAction(runId: string): Promise<RunDetailStat
     return { message: "Run details loaded.", route: detail.route };
   } catch (error) {
     return stravaFailure(error, "Couldn’t load run details from Strava. Please try again.");
+  }
+}
+
+export async function calculateMilestonesAction(): Promise<SyncState> {
+  const { id } = await requireUser();
+  try {
+    const { checked, remaining } = await calculateMilestoneBatch(id);
+    return {
+      message: `Checked ${checked} ${checked === 1 ? "run" : "runs"}.${remaining ? ` ${remaining} remaining; calculate again to continue.` : " All imported runs checked."}`,
+    };
+  } catch (error) {
+    return stravaFailure(error, "Couldn’t finish calculating milestones. Completed runs were saved; please try again.");
+  } finally {
+    revalidatePath("/milestones");
+  }
+}
+
+export async function retryMilestonesAction(): Promise<SyncState> {
+  const { id } = await requireUser();
+  try {
+    const { count } = await retryUnavailableMilestones(id);
+    revalidatePath("/milestones");
+    return { message: `${count} ${count === 1 ? "run is" : "runs are"} ready to check again.` };
+  } catch (error) {
+    console.error("Could not reset unavailable milestone runs:", error instanceof Error ? error.name : "UnknownError");
+    return { message: "Couldn’t prepare runs for another check. Please try again.", error: true };
   }
 }
 

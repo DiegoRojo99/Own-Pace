@@ -8,13 +8,14 @@ import { cn } from "@/lib/utils"
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/runs", label: "Runs" },
+  { href: "/milestones", label: "Milestones" },
   { href: "/settings", label: "Settings" },
 ]
 
 export function AppNav() {
   const pathname = usePathname()
   return (
-    <nav aria-label="Main navigation" className="flex items-center gap-1">
+    <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-1">
       {links.map(({ href, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`)
         return (

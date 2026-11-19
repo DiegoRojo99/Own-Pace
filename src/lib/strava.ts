@@ -2,11 +2,12 @@ import "server-only";
 import { db } from "./db";
 import { getStravaCooldown } from "./strava-rate";
 
-type StravaErrorCode = "rate-limit" | "revoked" | "upstream";
+type StravaErrorCode = "rate-limit" | "revoked" | "not-found" | "upstream";
 
 const errorMessages: Record<StravaErrorCode, string> = {
   "rate-limit": "Strava's request limit has been reached. Try again later.",
   revoked: "Reconnect your Strava account.",
+  "not-found": "The requested Strava activity is unavailable.",
   upstream: "Strava is temporarily unavailable.",
 };
 
@@ -212,6 +213,7 @@ export async function stravaFetch<T>(userId: string, path: string, params?: Stra
 
   if (response.status === 401) throw new StravaError("revoked");
   if (response.status === 429) throw new StravaError("rate-limit");
+  if (response.status === 404) throw new StravaError("not-found");
   if (!response.ok) throw new StravaError("upstream");
   return readJson<T>(response);
 }
