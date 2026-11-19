@@ -8,21 +8,23 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(cuid())
-  name            String?
-  email           String?    @unique
-  emailVerified   DateTime?
-  image           String?
-  stravaAthleteId Int        @unique
-  lastSyncedAt    DateTime?
-  syncCursor      Int?
-  syncBefore      Int?
-  syncPage        Int        @default(1)
-  syncNewest      Int?
-  syncVersion     Int        @default(0)
-  accounts        Account[]
-  sessions        Session[]
-  activities      Activity[]
+  id                    String     @id @default(cuid())
+  name                  String?
+  email                 String?    @unique
+  emailVerified         DateTime?
+  image                 String?
+  stravaAthleteId       Int        @unique
+  lastSyncedAt          DateTime?
+  syncCursor            Int?
+  syncBefore            Int?
+  syncPage              Int        @default(1)
+  syncNewest            Int?
+  activityRefreshBefore Int?
+  activityRefreshPage   Int        @default(1)
+  syncVersion           Int        @default(0)
+  accounts              Account[]
+  sessions              Session[]
+  activities            Activity[]
 }
 
 model Account {

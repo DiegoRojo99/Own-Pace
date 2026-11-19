@@ -42,7 +42,7 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to run 
 3. Run `npx prisma migrate deploy` with the production `DIRECT_URL` from a trusted environment before serving traffic. The build generates the Prisma client but does not apply schema changes.
 4. Set the Strava Authorization Callback Domain to your stable production hostname (no scheme or path). Its callback URL is `https://YOUR_HOST/api/auth/callback/strava`. Verify the consent screen includes activity access and that a returning athlete can reconnect.
 
-OAuth access tokens are used only on the server. Incremental sync imports newer activities; it is not a two-way mirror and does not apply older Strava edits or deletions. The shared Strava quota depends on the limits assigned to your API app.
+OAuth access tokens are used only on the server. Incremental sync imports newer activities and refreshes existing run names by scanning one older activity page per sync, cycling through history. It does not apply other older Strava edits or deletions. The shared Strava quota depends on the limits assigned to your API app.
 
 ## Roadmap
 
