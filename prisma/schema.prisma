@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String     @id @default(cuid())
+  name            String?
+  email           String?    @unique
+  emailVerified   DateTime?
+  image           String?
+  stravaAthleteId Int        @unique
+  lastSyncedAt    DateTime?
+  syncCursor      Int?
+  syncBefore      Int?
+  syncPage        Int        @default(1)
+  syncNewest      Int?
+  syncVersion     Int        @default(0)
+  accounts        Account[]
+  sessions        Session[]
+  activities      Activity[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Activity {
+  id               String   @id @default(cuid())
+  userId           String
+  stravaId         BigInt
+  name             String
+  type             String
+  startDate        DateTime
+  distance         Float
+  movingTime       Int
+  elapsedTime      Int
+  elevationGain    Float
+  averageHeartrate Float?
+  averageSpeed     Float
+  detailFetched    Boolean  @default(false)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splits           Split[]
+
+  @@unique([userId, stravaId])
+  @@index([userId, startDate])
+}
+
+model Split {
+  id                  String   @id @default(cuid())
+  activityId          String
+  index               Int
+  distance            Float
+  movingTime          Int
+  elapsedTime         Int
+  elevationDifference Float
+  averageSpeed        Float
+  averageHeartrate    Float?
+  activity            Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, index])
+}
+
+model StravaRateLimit {
+  id           Int      @id
+  blockedUntil DateTime
+}
