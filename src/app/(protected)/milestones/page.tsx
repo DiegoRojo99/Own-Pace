@@ -14,7 +14,7 @@ export default async function MilestonesPage() {
         <CardHeader>
           <CardTitle>{pending > 0 ? "Calculating records" : unavailable > 0 ? "Unavailable runs" : "No runs imported"}</CardTitle>
           {pending > 0 && <CardDescription>
-            Records use Strava&apos;s best efforts, or complete splits that exactly match a milestone. Moving time is preferred, with elapsed time as a fallback. Each batch checks up to five runs.
+            Records use Strava&apos;s best efforts, or complete splits covering up to 0.5% more than the milestone distance. Split times are not shortened or estimated. Moving time is preferred, with elapsed time as a fallback. Each batch checks up to five runs.
           </CardDescription>}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -27,7 +27,7 @@ export default async function MilestonesPage() {
           </p>
           {unavailable > 0 && (
             <p className="text-sm text-muted-foreground">
-              {unavailable} {unavailable === 1 ? "run has" : "runs have"} distances without a Strava best effort or exact split match, or could not be found on Strava. Records may be incomplete.
+              {unavailable} {unavailable === 1 ? "run has" : "runs have"} distances without a Strava best effort or a qualifying split match, or could not be found on Strava. Records may be incomplete.
             </p>
           )}
           <MilestoneActions pending={pending} unavailable={unavailable} />

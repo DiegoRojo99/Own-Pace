@@ -69,8 +69,26 @@ it("prefers Strava's effort and uses exact complete splits for other distances",
   }));
 });
 
+it("stores 2 km and 3 km split records when measured split distances slightly exceed them", async () => {
+  mocks.findRuns.mockResolvedValue([{ id: "run", stravaId: 1n, distance: 3003.2, splits: [] }]);
+  mocks.fetch.mockResolvedValue({
+    splits_metric: [
+      { split: 1, distance: 1000.1, moving_time: 402, elapsed_time: 420 },
+      { split: 2, distance: 1000, moving_time: 402, elapsed_time: 402 },
+      { split: 3, distance: 1003.1, moving_time: 608, elapsed_time: 749 },
+    ],
+  });
+  await expect(calculateMilestoneBatch("runner")).resolves.toEqual({ checked: 1, remaining: 0 });
+  expect(mocks.createEfforts).toHaveBeenCalledWith({
+    data: expect.arrayContaining([
+      { activityId: "run", distanceKey: "2km", duration: 804, timeBasis: "MOVING", source: "SPLITS" },
+      { activityId: "run", distanceKey: "3km", duration: 1412, timeBasis: "MOVING", source: "SPLITS" },
+    ]),
+  });
+});
+
 it("reports missing distances instead of estimating from partial splits", async () => {
-  mocks.findRuns.mockResolvedValue([{ id: "run", stravaId: 1n, distance: 8046.72, splits: [] }]);
+  mocks.findRuns.mockResolvedValue([{ id: "run", stravaId: 1n, distance: 8000, splits: [] }]);
   mocks.fetch.mockResolvedValue({ best_efforts: [{ distance: 1000, moving_time: 300 }] });
   await expect(calculateMilestoneBatch("runner")).resolves.toEqual({ checked: 1, remaining: 0 });
   expect(mocks.createEfforts).toHaveBeenCalledWith({

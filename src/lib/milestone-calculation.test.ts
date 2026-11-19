@@ -14,10 +14,13 @@ describe("Strava best-effort milestones", () => {
     expect(calculateStravaMilestones([
       { distance: 5000, moving_time: 0, elapsed_time: 1800 },
       { distance: 8047, moving_time: 2700 },
+      { distance: 8000, moving_time: 2700 },
+      { distance: 15000, moving_time: 5200 },
       { distance: 21097, moving_time: 6000 },
     ])).toEqual([
       { distanceKey: "5km", duration: 1800, timeBasis: "ELAPSED" },
-      { distanceKey: "5mi", duration: 2700, timeBasis: "MOVING" },
+      { distanceKey: "8km", duration: 2700, timeBasis: "MOVING" },
+      { distanceKey: "15km", duration: 5200, timeBasis: "MOVING" },
       { distanceKey: "half-marathon", duration: 6000, timeBasis: "MOVING" },
     ]);
   });
@@ -42,7 +45,45 @@ describe("complete-split milestone fallback", () => {
     expect(records.find((record) => record.distanceKey === "2km")).toEqual({
       distanceKey: "2km", duration: 570, timeBasis: "ELAPSED",
     });
-    expect(records.some((record) => record.distanceKey === "5mi")).toBe(false);
+    expect(records.some((record) => record.distanceKey === "8km")).toBe(false);
+  });
+
+  it("calculates 8 km and 15 km from exact consecutive splits", () => {
+    const splits = Array.from({ length: 15 }, (_, index) => ({
+      index: index + 1, distance: 1000, movingTime: 300 + index, elapsedTime: 320 + index,
+    }));
+    const records = calculateSplitMilestones(splits);
+    expect(records.find((record) => record.distanceKey === "8km")).toEqual({
+      distanceKey: "8km", duration: 2428, timeBasis: "MOVING",
+    });
+    expect(records.find((record) => record.distanceKey === "15km")).toEqual({
+      distanceKey: "15km", duration: 4605, timeBasis: "MOVING",
+    });
+  });
+
+  it("uses the fastest full splits despite a small distance overrun", () => {
+    const records = calculateSplitMilestones([
+      { index: 1, distance: 1000.1, movingTime: 402, elapsedTime: 420 },
+      { index: 2, distance: 1000, movingTime: 402, elapsedTime: 402 },
+      { index: 3, distance: 1003.1, movingTime: 608, elapsedTime: 749 },
+      { index: 4, distance: 999.2, movingTime: 531, elapsedTime: 715 },
+      { index: 5, distance: 1000.8, movingTime: 469, elapsedTime: 469 },
+    ]);
+    expect(records.find((record) => record.distanceKey === "2km")).toEqual({
+      distanceKey: "2km", duration: 804, timeBasis: "MOVING",
+    });
+    expect(records.find((record) => record.distanceKey === "3km")).toEqual({
+      distanceKey: "3km", duration: 1412, timeBasis: "MOVING",
+    });
+  });
+
+  it("rejects split windows shorter than the target or over the distance tolerance", () => {
+    const split = (distance: number) => [{ index: 1, distance, movingTime: 300, elapsedTime: 300 }];
+    expect(calculateSplitMilestones(split(999.9))).toEqual([]);
+    expect(calculateSplitMilestones(split(1005))).toEqual([
+      { distanceKey: "1km", duration: 300, timeBasis: "MOVING" },
+    ]);
+    expect(calculateSplitMilestones(split(1005.1))).toEqual([]);
   });
 
   it("does not combine nonconsecutive splits or estimate partial splits", () => {

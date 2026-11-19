@@ -10,6 +10,13 @@ function periodTimes(efforts: MilestoneEffort[], now: Date | null) {
 }
 
 describe("milestone periods", () => {
+  it("shows nine distances including 3 km, 8 km and 15 km instead of five miles", () => {
+    const records = milestoneRecords([], new Date("2026-07-01T12:00:00Z"));
+    expect(records.map((record) => record.key)).toEqual([
+      "1km", "2km", "3km", "5km", "8km", "10km", "15km", "half-marathon", "marathon",
+    ]);
+  });
+
   it("finds separate best efforts for each rolling period and YTD", () => {
     const now = new Date("2026-07-01T12:00:00Z");
     const efforts = [

@@ -1,9 +1,11 @@
 export const milestoneDistances = [
   { key: "1km", label: "1 km", meters: 1_000 },
   { key: "2km", label: "2 km", meters: 2_000 },
+  { key: "3km", label: "3 km", meters: 3_000 },
   { key: "5km", label: "5 km", meters: 5_000 },
-  { key: "5mi", label: "5 miles", meters: 8_046.72 },
+  { key: "8km", label: "8 km", meters: 8_000 },
   { key: "10km", label: "10 km", meters: 10_000 },
+  { key: "15km", label: "15 km", meters: 15_000 },
   { key: "half-marathon", label: "Half marathon", meters: 21_097.5 },
   { key: "marathon", label: "Marathon", meters: 42_195 },
 ] as const;
@@ -35,6 +37,8 @@ export function calculateStravaMilestones(efforts: readonly BestEffort[]): Resul
 
 type Split = { index: number; distance: number; movingTime: number; elapsedTime: number };
 
+const MAX_SPLIT_DISTANCE_RATIO = 1.005;
+
 export function calculateSplitMilestones(splits: readonly Split[]) {
   const best = new Map<string, { distanceKey: string; duration: number; timeBasis: "MOVING" | "ELAPSED" }>();
   const maxDistance = milestoneDistances[milestoneDistances.length - 1].meters;
@@ -59,9 +63,9 @@ export function calculateSplitMilestones(splits: readonly Split[]) {
       movingTime += split.movingTime;
       hasMovingTime &&= split.movingTime > 0;
       hasElapsedTime &&= split.elapsedTime > 0;
-      if (distance > maxDistance + 1e-6) break;
+      if (distance > maxDistance * MAX_SPLIT_DISTANCE_RATIO + 1e-6) break;
       for (const target of milestoneDistances) {
-        if (Math.abs(distance - target.meters) > 1e-6) continue;
+        if (distance < target.meters - 1e-6 || distance > target.meters * MAX_SPLIT_DISTANCE_RATIO + 1e-6) continue;
         if (!hasMovingTime && !hasElapsedTime) continue;
         const duration = hasMovingTime ? movingTime : elapsedTime;
         const existing = best.get(target.key);
