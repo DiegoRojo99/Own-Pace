@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+/AGENTS.md
+.env*
+!.env.example
+src/generated/
+.vercel/
+*.log
