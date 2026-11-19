@@ -1,8 +1,8 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-import { LoadSplitsForm } from "@/components/load-splits-form"
 import { PageHeading } from "@/components/page-heading"
+import { RunDetailsForm } from "@/components/run-details-form"
 import { SplitPaceChart } from "@/components/split-pace-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,6 +58,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       </Card>
       <Card>
         <CardHeader>
+          <CardTitle>Route</CardTitle>
+          <CardDescription>Route data from Strava, when available.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RunDetailsForm key={run.id} runId={run.id} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
           <CardTitle>Kilometer splits</CardTitle>
           <CardDescription>Per-split metrics from Strava. The final split may be shorter than a kilometer.</CardDescription>
         </CardHeader>
@@ -98,7 +107,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           <CardContent>
             {run.detailFetched
               ? <p className="text-sm text-muted-foreground">Strava doesn&apos;t have kilometer splits for this run.</p>
-              : <LoadSplitsForm key={run.id} runId={run.id} />}
+              : <p className="text-sm text-muted-foreground">Splits are loaded with the route above.</p>}
           </CardContent>
         )}
       </Card>

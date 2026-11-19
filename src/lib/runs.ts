@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import { decodePolyline } from "./polyline";
 import { StravaError, stravaFetch, stravaIdToPath } from "./strava";
 
 type MetricSplit = {
@@ -27,20 +28,33 @@ export function getRun(userId: string, id: string) {
   });
 }
 
-export async function fetchRunSplits(userId: string, id: string): Promise<boolean> {
+export async function fetchRunDetails(userId: string, id: string): Promise<{ route: [number, number][] | null } | null> {
   const where = { id, userId };
   // Resolve the upstream activity only after checking local ownership.
   const run = await db.activity.findUnique({
     where,
     select: { stravaId: true, detailFetched: true },
   });
-  if (!run) return false;
-  if (run.detailFetched) return true;
+  if (!run) return null;
 
-  const detail = await stravaFetch<{ splits_metric?: MetricSplit[] | null }>(
+  const detail = await stravaFetch<{ splits_metric?: MetricSplit[] | null; map?: { polyline?: string | null; summary_polyline?: string | null } | null }>(
     userId, `/activities/${stravaIdToPath(run.stravaId)}`,
   );
   if (!detail || typeof detail !== "object" || Array.isArray(detail)) throw new StravaError("upstream");
+  if (detail.map != null && (typeof detail.map !== "object" || Array.isArray(detail.map))) throw new StravaError("upstream");
+  const encoded = detail.map?.polyline || detail.map?.summary_polyline;
+  if (encoded != null && typeof encoded !== "string") throw new StravaError("upstream");
+  let route: [number, number][] | null = null;
+  if (encoded) {
+    try {
+      const points = decodePolyline(encoded);
+      if (points.length > 1) route = points;
+    } catch {
+      throw new StravaError("upstream");
+    }
+  }
+  if (run.detailFetched) return { route };
+
   const metric = detail.splits_metric ?? [];
   if (!Array.isArray(metric)) throw new StravaError("upstream");
 
@@ -54,7 +68,7 @@ export async function fetchRunSplits(userId: string, id: string): Promise<boolea
     averageSpeed: split.average_speed,
     averageHeartrate: split.average_heartrate ?? null,
   }));
-  return db.$transaction(async (tx) => {
+  const found = await db.$transaction(async (tx) => {
     // Claim and write atomically, including when there are no metric splits to cache.
     const claim = await tx.activity.updateMany({
       where: { ...where, detailFetched: false },
@@ -66,4 +80,5 @@ export async function fetchRunSplits(userId: string, id: string): Promise<boolea
     if (data.length) await tx.split.createMany({ data });
     return true;
   });
+  return found ? { route } : null;
 }

@@ -11,7 +11,7 @@ export default async function RunsPage() {
 
   return (
     <div className="space-y-7">
-      <PageHeading eyebrow="Activity log" title="Runs" description="Browse your imported runs. Select a run to see its kilometer splits." action={<SyncRunsForm />} />
+      <PageHeading eyebrow="Activity log" title="Runs" description="Browse your imported runs. Select a run to see its route and kilometer splits." action={<SyncRunsForm />} />
       <Card>
         <CardHeader>
           <CardTitle>Run history</CardTitle>

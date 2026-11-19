@@ -18,11 +18,11 @@ export function RunTable({ runs, caption }: { runs: readonly (RunMetrics & { id:
       </TableHeader>
       <TableBody>
         {runs.map((run) => (
-          <TableRow key={run.id}>
+          <TableRow key={run.id} className="relative cursor-pointer focus-within:outline-2 focus-within:outline-primary">
             <TableCell className="min-w-36 max-w-72 pl-5 whitespace-normal sm:pl-6">
               <Link
                 href={`/runs/${run.id}`}
-                className="rounded-sm font-semibold wrap-anywhere hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                className="rounded-sm font-semibold wrap-anywhere after:absolute after:inset-0 hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {run.name}
               </Link>

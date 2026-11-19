@@ -4,7 +4,7 @@ Own Pace is a private running log that brings your Strava stats and kilometre sp
 
 - Sign in with Strava and sync your runs in batches. Press **Sync runs** again if more activities are available.
 - See the last 12 weeks of running distance, all-time totals, longest run, and this month versus last month.
-- Browse your runs and open one to see its kilometre splits. The first visit fetches them from Strava; later visits use the saved splits.
+- Browse your runs and open one to see its route and kilometre splits. Routes are fetched from Strava on each visit; splits are saved after the first visit. Map tiles are loaded from OpenStreetMap, which can see the area displayed.
 - Delete your Own Pace account and imported data in **Settings**. This does not delete anything on Strava.
 
 Built with Next.js App Router, TypeScript, Auth.js v5, Prisma, Neon Postgres, Tailwind CSS, shadcn/ui components, and Recharts.

@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { fetchRunSplits, getRun, getRuns } from "./runs";
+import { fetchRunDetails, getRun, getRuns } from "./runs";
 
 vi.mock("server-only", () => ({}));
 
@@ -37,7 +37,7 @@ it("scopes list, detail, and split fetch to the user", async () => {
   mocks.findRun.mockResolvedValue(null);
   await getRuns(owner.userId);
   await getRun(owner.userId, owner.id);
-  await expect(fetchRunSplits(owner.userId, owner.id)).resolves.toBe(false);
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toBeNull();
   expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: owner.userId } }));
   expect(mocks.findRun).toHaveBeenNthCalledWith(1, {
     where: owner,
@@ -52,7 +52,7 @@ it("claims before inserting metric splits and uses a lossless Strava ID in the p
     splits_metric: [{ split: 1, distance: 1000, moving_time: 300, elapsed_time: 310,
       elevation_difference: -8, average_speed: 3.33 }],
   });
-  await expect(fetchRunSplits(owner.userId, owner.id)).resolves.toBe(true);
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({ route: null });
   expect(mocks.fetch).toHaveBeenCalledWith(owner.userId, "/activities/9007199254740993");
   expect(mocks.updateRun).toHaveBeenCalledWith({
     where: { ...owner, detailFetched: false }, data: { detailFetched: true },
@@ -64,15 +64,15 @@ it("claims before inserting metric splits and uses a lossless Strava ID in the p
   });
 });
 
-it("caches empty detail and skips a subsequent fetch", async () => {
+it("caches empty splits while loading the route again on a subsequent visit", async () => {
   mocks.fetch.mockResolvedValue({});
   mocks.findRun.mockResolvedValueOnce({ stravaId, detailFetched: false })
     .mockResolvedValueOnce({ stravaId, detailFetched: true });
-  await expect(fetchRunSplits(owner.userId, owner.id)).resolves.toBe(true);
-  await expect(fetchRunSplits(owner.userId, owner.id)).resolves.toBe(true);
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({ route: null });
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({ route: null });
   expect(mocks.updateRun).toHaveBeenCalledOnce();
   expect(mocks.createSplits).not.toHaveBeenCalled();
-  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
 });
 
 it("does not insert when the claim loses to another worker", async () => {
@@ -80,6 +80,35 @@ it("does not insert when the claim loses to another worker", async () => {
   mocks.updateRun.mockResolvedValue({ count: 0 });
   mocks.findRun.mockResolvedValueOnce({ stravaId, detailFetched: false })
     .mockResolvedValueOnce({ id: owner.id });
-  await expect(fetchRunSplits(owner.userId, owner.id)).resolves.toBe(true);
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({ route: null });
   expect(mocks.createSplits).not.toHaveBeenCalled();
+});
+
+it("loads the route for a run whose splits are already cached", async () => {
+  mocks.findRun.mockResolvedValue({ stravaId, detailFetched: true });
+  mocks.fetch.mockResolvedValue({ map: { polyline: "_p~iF~ps|U_ulLnnqC_mqNvxq`@" } });
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({
+    route: [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]],
+  });
+  expect(mocks.updateRun).not.toHaveBeenCalled();
+});
+
+it("uses the summary route when the detailed polyline is absent", async () => {
+  mocks.fetch.mockResolvedValue({ map: { polyline: null, summary_polyline: "_p~iF~ps|U_ulLnnqC" } });
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toEqual({
+    route: [[38.5, -120.2], [40.7, -120.95]],
+  });
+});
+
+it("reports malformed route data instead of caching incomplete details", async () => {
+  mocks.fetch.mockResolvedValue({ map: { polyline: "_" } });
+  await expect(fetchRunDetails(owner.userId, owner.id)).rejects.toMatchObject({ code: "upstream" });
+  expect(mocks.updateRun).not.toHaveBeenCalled();
+});
+
+it("returns not found if the run is deleted while its details are loading", async () => {
+  mocks.fetch.mockResolvedValue({ map: { polyline: "_p~iF~ps|U_ulLnnqC" } });
+  mocks.updateRun.mockResolvedValue({ count: 0 });
+  mocks.findRun.mockResolvedValueOnce({ stravaId, detailFetched: false }).mockResolvedValueOnce(null);
+  await expect(fetchRunDetails(owner.userId, owner.id)).resolves.toBeNull();
 });

@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
-import { fetchRunSplits } from "@/lib/runs";
+import { fetchRunDetails } from "@/lib/runs";
 import { requireUser } from "@/lib/session";
 import { StravaError } from "@/lib/strava";
 import { syncRuns } from "@/lib/sync";
 
 export type SyncState = { message: string; error?: boolean };
-export type SplitState = SyncState;
+export type RunDetailState = SyncState & { route?: [number, number][] | null };
 
 async function stravaFailure(error: unknown, fallback: string): Promise<SyncState> {
   if (error instanceof StravaError) {
@@ -36,15 +36,16 @@ export async function syncRunsAction(): Promise<SyncState> {
   }
 }
 
-export async function loadSplitsAction(runId: string): Promise<SplitState> {
+export async function loadRunDetailsAction(runId: string): Promise<RunDetailState> {
   const { id } = await requireUser();
   if (!/^[a-z0-9]{1,64}$/.test(runId)) return { message: "Run not found.", error: true };
   try {
-    if (!(await fetchRunSplits(id, runId))) return { message: "Run not found.", error: true };
+    const detail = await fetchRunDetails(id, runId);
+    if (!detail) return { message: "Run not found.", error: true };
     revalidatePath(`/runs/${runId}`);
-    return { message: "Splits loaded." };
+    return { message: "Run details loaded.", route: detail.route };
   } catch (error) {
-    return stravaFailure(error, "Couldn’t load splits from Strava. Please try again.");
+    return stravaFailure(error, "Couldn’t load run details from Strava. Please try again.");
   }
 }
 
