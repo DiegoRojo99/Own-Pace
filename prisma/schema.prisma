@@ -86,11 +86,23 @@ model Activity {
   @@index([userId, startDate])
 }
 
+enum MilestoneTimeBasis {
+  MOVING
+  ELAPSED
+}
+
+enum MilestoneSource {
+  STRAVA
+  SPLITS
+}
+
 model MilestoneEffort {
   activityId  String
   distanceKey String
-  elapsedTime Float
-  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  duration    Float
+  timeBasis   MilestoneTimeBasis @default(MOVING)
+  source      MilestoneSource    @default(STRAVA)
+  activity    Activity           @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@id([activityId, distanceKey])
 }

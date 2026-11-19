@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { milestoneRecords, type MilestoneEffort } from "./milestone-periods";
 
-function effort(elapsedTime: number, startDate: Date, distanceKey = "1km"): MilestoneEffort {
-  return { distanceKey, elapsedTime, activity: { id: String(elapsedTime), name: "Run", startDate } };
+function effort(duration: number, startDate: Date, distanceKey = "1km"): MilestoneEffort {
+  return { distanceKey, duration, timeBasis: "MOVING", source: "STRAVA", activity: { id: String(duration), name: "Run", startDate } };
 }
 
 function periodTimes(efforts: MilestoneEffort[], now: Date | null) {
-  return milestoneRecords(efforts, now)[0].periods.map((period) => period.effort?.elapsedTime ?? null);
+  return milestoneRecords(efforts, now)[0].periods.map((period) => period.effort?.duration ?? null);
 }
 
 describe("milestone periods", () => {

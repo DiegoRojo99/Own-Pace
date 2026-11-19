@@ -2,7 +2,9 @@ import { milestoneDistances } from "./milestone-calculation";
 
 export type MilestoneEffort = {
   distanceKey: string;
-  elapsedTime: number;
+  duration: number;
+  timeBasis: "MOVING" | "ELAPSED";
+  source: "STRAVA" | "SPLITS";
   activity: { id: string; name: string; startDate: Date };
 };
 

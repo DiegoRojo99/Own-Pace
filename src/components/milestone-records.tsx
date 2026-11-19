@@ -49,7 +49,7 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
       <PageHeading
         eyebrow="Personal records"
         title="Milestones"
-        description="Your fastest continuous efforts across your imported runs."
+        description="Your fastest continuous efforts, using moving time when available."
         action={
           <div role="tablist" aria-label="Milestone period" className="flex max-w-[calc(100vw-2rem)] flex-wrap gap-1 rounded-lg bg-muted p-1 sm:max-w-none">
             {milestonePeriods.map((period, index) => (
@@ -88,7 +88,11 @@ export function MilestoneRecords({ efforts, children }: { efforts: MilestoneEffo
                   <p className="text-sm text-muted-foreground">Loading…</p>
                 ) : period.effort ? (
                   <>
-                    <p className="text-2xl font-bold tabular-nums">{formatDuration(period.effort.elapsedTime)}</p>
+                    <p className="text-2xl font-bold tabular-nums">{formatDuration(period.effort.duration)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {period.effort.timeBasis === "MOVING" ? "Moving time" : "Elapsed time"}
+                      {" · "}{period.effort.source === "SPLITS" ? "Complete splits" : "Strava best effort"}
+                    </p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       <Link href={`/runs/${period.effort.activity.id}`} className="font-medium break-words text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
                         {period.effort.activity.name}

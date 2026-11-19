@@ -10,12 +10,12 @@ export default async function MilestonesPage() {
 
   return (
     <MilestoneRecords efforts={efforts}>
-      <Card>
+      {(pending > 0 || unavailable > 0 || total === 0) && <Card>
         <CardHeader>
-          <CardTitle>Calculating records</CardTitle>
-          <CardDescription>
-            Estimates use Strava distance and elapsed-time samples, including stops. Each batch checks up to five runs to help manage Strava&apos;s limits.
-          </CardDescription>
+          <CardTitle>{pending > 0 ? "Calculating records" : unavailable > 0 ? "Unavailable runs" : "No runs imported"}</CardTitle>
+          {pending > 0 && <CardDescription>
+            Records use Strava&apos;s best efforts, or complete splits that exactly match a milestone. Moving time is preferred, with elapsed time as a fallback. Each batch checks up to five runs.
+          </CardDescription>}
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
@@ -23,16 +23,16 @@ export default async function MilestonesPage() {
               ? "Sync your runs first to start calculating milestones."
               : pending > 0
               ? `${pending} ${pending === 1 ? "run is" : "runs are"} still waiting to be checked. Records may change as more runs are checked.`
-              : "All imported runs have been checked."}
+              : null}
           </p>
           {unavailable > 0 && (
             <p className="text-sm text-muted-foreground">
-              {unavailable} {unavailable === 1 ? "run has" : "runs have"} no usable samples or could not be found on Strava, so records may be incomplete.
+              {unavailable} {unavailable === 1 ? "run has" : "runs have"} distances without a Strava best effort or exact split match, or could not be found on Strava. Records may be incomplete.
             </p>
           )}
           <MilestoneActions pending={pending} unavailable={unavailable} />
         </CardContent>
-      </Card>
+      </Card>}
     </MilestoneRecords>
   )
 }
