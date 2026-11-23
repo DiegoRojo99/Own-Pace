@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { monthlyTrends } from "./trends"
+import { cadenceTrends, monthlyTrends } from "./trends"
+import { CADENCE_ANALYSIS_VERSION } from "./cadence-calculation"
 
 describe("monthly running trends", () => {
   it("returns 12 UTC calendar months and distance-weighted pace and time-weighted heart rate", () => {
@@ -23,4 +24,43 @@ describe("monthly running trends", () => {
     })
     expect(trends[1]).toMatchObject({ month: "2025-05", distance: 0, averagePace: null, averageHeartrate: null })
   })
+})
+
+it("orders cadence trends by activity time, converts seconds to minutes, and preserves missing-data gaps", () => {
+  const missing = { runningTime: null, walkingTime: null, firstRunningTime: null, lastRunningTime: null, cadenceSource: null }
+  const analyzed = { cadenceVersion: CADENCE_ANALYSIS_VERSION, cadenceSource: "CADENCE" as const }
+  const runs = [
+    { id: "later", name: "Later run", startDate: new Date("2026-02-01T12:00:00Z"), cadenceChecked: false, ...analyzed, ...missing },
+    { id: "first", name: "First run", startDate: new Date("2026-01-01T12:00:00Z"), cadenceChecked: true, ...analyzed,
+      runningTime: 600, walkingTime: 120, firstRunningTime: 360, lastRunningTime: 240 },
+    { id: "middle", name: "No cadence", startDate: new Date("2026-01-15T12:00:00Z"), cadenceChecked: true, ...analyzed, ...missing },
+    { id: "walk", name: "Walking-only run", startDate: new Date("2026-03-01T12:00:00Z"), cadenceChecked: true, ...analyzed,
+      runningTime: 0, walkingTime: 120, firstRunningTime: 0, lastRunningTime: 0 },
+  ]
+  const trends = cadenceTrends(runs)
+  expect(trends.map((point) => point.id)).toEqual(["first", "middle", "later", "walk"])
+  expect(trends[0]).toMatchObject({
+    name: "First run", timestamp: runs[1].startDate.getTime(), status: "available",
+    runningMinutes: 10, walkingMinutes: 2, firstRunningMinutes: 6, lastRunningMinutes: 4,
+  })
+  expect(trends[1]).toMatchObject({ status: "unavailable", firstRunningMinutes: null, lastRunningMinutes: null })
+  expect(trends[2]).toMatchObject({ status: "pending", runningMinutes: null, walkingMinutes: null })
+  expect(trends[3]).toMatchObject({ status: "available", runningMinutes: 0, firstRunningMinutes: 0, lastRunningMinutes: 0 })
+  expect(runs[0].id).toBe("later")
+})
+
+it("hides stale cached results until recalculated and distinguishes speed estimates", () => {
+  const base = {
+    name: "Run", startDate: new Date("2026-01-01T12:00:00Z"), cadenceChecked: true,
+    runningTime: 120, walkingTime: 60, firstRunningTime: 60, lastRunningTime: 60,
+    cadenceSource: "SPEED" as const,
+  }
+  const trends = cadenceTrends([
+    { ...base, id: "old", cadenceVersion: CADENCE_ANALYSIS_VERSION - 1 },
+    { ...base, id: "new", cadenceVersion: CADENCE_ANALYSIS_VERSION },
+  ])
+  expect(trends.find((point) => point.id === "old")).toMatchObject({
+    status: "pending", source: null, runningMinutes: null, walkingMinutes: null, firstRunningMinutes: null, lastRunningMinutes: null,
+  })
+  expect(trends.find((point) => point.id === "new")).toMatchObject({ status: "available", source: "SPEED", runningMinutes: 2 })
 })

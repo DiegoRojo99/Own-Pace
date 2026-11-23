@@ -81,12 +81,24 @@ model Activity {
   detailFetched        Boolean           @default(false)
   milestoneChecked     Boolean           @default(false)
   milestoneUnavailable Boolean           @default(false)
+  cadenceChecked       Boolean           @default(false)
+  cadenceVersion       Int               @default(0)
+  cadenceSource        RunWalkSource?
+  runningTime          Float?
+  walkingTime          Float?
+  firstRunningTime     Float?
+  lastRunningTime      Float?
   user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   splits               Split[]
   milestoneEfforts     MilestoneEffort[]
 
   @@unique([userId, stravaId])
   @@index([userId, startDate])
+}
+
+enum RunWalkSource {
+  CADENCE
+  SPEED
 }
 
 enum MilestoneTimeBasis {

@@ -1,4 +1,33 @@
 import { paceSecondsPerKm } from "./format"
+import { CADENCE_ANALYSIS_VERSION, type CadenceDurations, type RunWalkSource } from "./cadence-calculation"
+
+type CadenceRun = {
+  id: string
+  name: string
+  startDate: Date
+  cadenceChecked: boolean
+  cadenceVersion: number
+  cadenceSource: RunWalkSource | null
+} & { [Key in keyof CadenceDurations]: number | null }
+
+export function cadenceTrends(runs: readonly CadenceRun[]) {
+  return [...runs]
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime() || a.id.localeCompare(b.id))
+    .map((run) => {
+      const current = run.cadenceChecked && run.cadenceVersion >= CADENCE_ANALYSIS_VERSION
+      return {
+        id: run.id,
+        name: run.name,
+        timestamp: run.startDate.getTime(),
+        status: !current ? "pending" : run.runningTime === null ? "unavailable" : "available",
+        source: current ? run.cadenceSource : null,
+        runningMinutes: !current || run.runningTime === null ? null : run.runningTime / 60,
+        walkingMinutes: !current || run.walkingTime === null ? null : run.walkingTime / 60,
+        firstRunningMinutes: !current || run.firstRunningTime === null ? null : run.firstRunningTime / 60,
+        lastRunningMinutes: !current || run.lastRunningTime === null ? null : run.lastRunningTime / 60,
+      }
+    })
+}
 
 export type TrendRun = {
   startDate: Date

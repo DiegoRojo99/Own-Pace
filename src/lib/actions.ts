@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
+import { calculateCadenceBatch, retryUnavailableCadence } from "@/lib/cadence";
 import { calculateMilestoneBatch, retryUnavailableMilestones } from "@/lib/milestones";
 import { fetchRunDetails } from "@/lib/runs";
 import { requireUser } from "@/lib/session";
@@ -40,6 +41,7 @@ export async function syncRunsAction(): Promise<SyncState> {
     revalidatePath("/walks");
     revalidatePath("/map");
     revalidatePath("/milestones");
+    revalidatePath("/trends");
   }
 }
 
@@ -79,6 +81,32 @@ export async function retryMilestonesAction(): Promise<SyncState> {
   } catch (error) {
     console.error("Could not reset unavailable milestone runs:", error instanceof Error ? error.name : "UnknownError");
     return { message: "Couldn’t prepare runs for another check. Please try again.", error: true };
+  }
+}
+
+export async function calculateCadenceAction(): Promise<SyncState> {
+  const { id } = await requireUser();
+  try {
+    const { checked, remaining } = await calculateCadenceBatch(id);
+    return {
+      message: `Analyzed ${checked} ${checked === 1 ? "run" : "runs"}.${remaining ? ` ${remaining} remaining; analyze again to continue.` : " All imported runs analyzed."}`,
+    };
+  } catch (error) {
+    return stravaFailure(error, "Couldn’t finish analyzing runs. Completed runs were saved; please try again.");
+  } finally {
+    revalidatePath("/trends");
+  }
+}
+
+export async function retryCadenceAction(): Promise<SyncState> {
+  const { id } = await requireUser();
+  try {
+    const { count } = await retryUnavailableCadence(id);
+    revalidatePath("/trends");
+    return { message: `${count} ${count === 1 ? "run is" : "runs are"} ready to check again.` };
+  } catch (error) {
+    console.error("Could not reset unavailable cadence runs:", error instanceof Error ? error.name : "UnknownError");
+    return { message: "Couldn’t prepare runs for another analysis. Please try again.", error: true };
   }
 }
 
