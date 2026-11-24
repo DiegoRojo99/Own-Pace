@@ -96,7 +96,7 @@ export function CityCard({ city }: { city: CityProgress }) {
         </div>
       </div>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-      {city.ready && city.total > 0 && <Button asChild size="sm" variant="ghost" className="mt-4 -ml-3 text-primary"><Link href="/map">View activity map <span aria-hidden="true">→</span></Link></Button>}
+      {city.ready && city.total > 0 && <Button asChild size="sm" variant="ghost" className="mt-4 -ml-3 text-primary"><Link href={`/explorer/${city.id}`}>View city map <span aria-hidden="true">→</span></Link></Button>}
     </div>
   </article>
 }
