@@ -78,3 +78,6 @@ OAuth access tokens are used only on the server. Incremental sync imports newer 
 - Fog of war, neighbourhood completion, and XP/badges
 
 MIT licensed.
+### Admin: city boundaries
+
+Set `ADMIN_STRAVA_ATHLETE_IDS` (comma-separated Strava athlete IDs) in the server environment, then open `/admin/cities` to edit a city's GeoJSON Polygon or MultiPolygon boundary. Saving discards the city's tiles; they are rebuilt for all users tracking it the next time Explorer prepares the city. Other users get a 404 on these pages.
