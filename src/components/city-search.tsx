@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import type { CityCandidate } from "@/lib/city-lookup-data"
 
 type LookupResponse = { results?: CityCandidate[]; city?: { name: string }; error?: string }
 
 export function CitySearch() {
+  const router = useRouter()
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<CityCandidate[]>([])
   const [busy, setBusy] = useState(false)
@@ -40,9 +42,11 @@ export function CitySearch() {
     setBusy(true)
     setMessage("Loading the selected boundary…")
     try {
-      const data = await request({ action: "select", osmType: city.osmType, osmId: city.osmId })
+      const data = await request({ action: "select", osmType: city.osmType, osmId: city.osmId, label: city.label })
       if (!data.city) throw new Error("City lookup returned an invalid response.")
-      setMessage(`Boundary cached for ${data.city.name}. City tile progress will be added in a later step.`)
+      setResults([])
+      setMessage(`${data.city.name} added to your cities. Preparing its tiles…`)
+      router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load the boundary.")
     } finally { setBusy(false) }
@@ -56,12 +60,12 @@ export function CitySearch() {
         <input id="city-search" name="city" value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} maxLength={100} required
           placeholder="e.g. Madrid, Spain" className="h-9 w-full min-w-48 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
       </label>
-      <Button type="submit" disabled={busy}>{busy ? "Please wait…" : "Search"}</Button>
+      <Button type="submit" disabled={busy}>{busy ? "Please wait…" : "Find city"}</Button>
     </form>
     <p role="status" className="text-sm text-muted-foreground">{message}</p>
     {results.length > 0 && <ul className="space-y-2">{results.map((city) => <li key={`${city.osmType}/${city.osmId}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
       <span className="text-sm">{city.label}</span>
-      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => select(city)}>Select boundary</Button>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => select(city)}>Add city</Button>
     </li>)}</ul>}
     <p className="text-xs text-muted-foreground">Geocoding data © <a className="underline" href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>.</p>
   </div>

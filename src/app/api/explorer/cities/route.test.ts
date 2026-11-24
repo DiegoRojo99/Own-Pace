@@ -2,8 +2,9 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { POST } from "./route";
 import { CityLookupError } from "@/lib/city-lookup";
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), search: vi.fn(), select: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), search: vi.fn(), select: vi.fn(), upsert: vi.fn(), remove: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/db", () => ({ db: { userCity: { upsert: mocks.upsert, deleteMany: mocks.remove } } }));
 vi.mock("@/lib/city-lookup", () => ({
   CityLookupError: class CityLookupError extends Error { constructor(public code: string) { super(code); } },
   searchCities: mocks.search, selectCity: mocks.select,
@@ -32,9 +33,15 @@ it("searches and selects only on explicit authenticated requests", async () => {
   const search = await POST(request({ action: "search", query: "Madrid" }));
   expect(await search.json()).toEqual({ results: [{ name: "Madrid" }] });
   expect(search.headers.get("cache-control")).toBe("private, no-store");
-  mocks.select.mockResolvedValue({ name: "Madrid" });
-  expect((await POST(request({ action: "select", osmType: "RELATION", osmId: "42" }))).status).toBe(200);
+  mocks.select.mockResolvedValue({ id: "city1", name: "Madrid" });
+  expect((await POST(request({ action: "select", osmType: "RELATION", osmId: "42", label: "Madrid, Spain" }))).status).toBe(200);
   expect(mocks.select).toHaveBeenCalledWith("RELATION", "42");
+  expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+    where: { userId_cityId: { userId: "owner", cityId: "city1" } },
+    create: { userId: "owner", cityId: "city1", label: "Madrid, Spain" },
+  }));
+  expect((await POST(request({ action: "remove", cityId: "city1" }))).status).toBe(200);
+  expect(mocks.remove).toHaveBeenCalledWith({ where: { userId: "owner", cityId: "city1" } });
   expect((await POST(request({ action: "select", osmType: "NODE", osmId: "42" }))).status).toBe(400);
 });
 

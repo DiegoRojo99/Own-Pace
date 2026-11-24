@@ -135,7 +135,7 @@ export async function selectCity(osmType: "WAY" | "RELATION", osmId: string) {
   const existing = await db.city.findUnique({ where: { osmType_osmId: { osmType, osmId: id } } });
   if (existing) {
     if (!parseBoundary(existing.boundary)) throw new CityLookupError("upstream");
-    return { name: existing.name };
+    return { id: existing.id, name: existing.name };
   }
   const key = cacheKey("lookup", `${osmType}/${osmId}`);
   const cached = await db.cityLookupCache.findUnique({ where: { key } });
@@ -163,7 +163,7 @@ export async function selectCity(osmType: "WAY" | "RELATION", osmId: string) {
     where: { osmType_osmId: { osmType, osmId: id } },
     create: { osmType, osmId: id, name: candidate.name, boundary },
     update: {},
-    select: { name: true },
+    select: { id: true, name: true },
   });
   return city;
 }

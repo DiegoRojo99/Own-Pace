@@ -26,6 +26,7 @@ model User {
   sessions              Session[]
   activities            Activity[]
   tiles                 UserTile[]
+  cities                UserCity[]
 }
 
 model Account {
@@ -138,9 +139,26 @@ model City {
   osmId             BigInt
   boundary          Json
   boundaryFetchedAt DateTime       @default(now())
+  tileZoom          Int?
+  tileNextX         Int?
+  tileNextY         Int?
+  tilesReady        Boolean        @default(false)
   tiles             CityTile[]
+  users             UserCity[]
 
   @@unique([osmType, osmId])
+}
+
+model UserCity {
+  userId  String
+  cityId  String
+  label   String
+  addedAt DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city    City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, cityId])
+  @@index([cityId])
 }
 
 model CityTile {

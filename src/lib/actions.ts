@@ -122,7 +122,7 @@ export async function signOutAction() {
 export async function deleteMyData(formData: FormData) {
   const { id } = await requireUser();
   if (formData.get("confirmation") !== "DELETE") return;
-  // Only delete the signed-in user; foreign keys cascade to their runs, tiles, splits, accounts and sessions.
+  // Only delete the signed-in user; foreign keys cascade to their runs, tile claims, city selections, accounts and sessions.
   await db.user.deleteMany({ where: { id } });
   await signOut({ redirectTo: "/?reason=deleted" });
 }

@@ -74,15 +74,15 @@ it("releases the lease after a network failure and rejects oversized responses",
 
 it("caches a selected polygon and reuses an existing city without a request", async () => {
   mocks.fetch.mockResolvedValue(Response.json([{ ...place, geojson: boundary }]));
-  mocks.cityUpsert.mockResolvedValue({ name: "Madrid" });
-  expect(await selectCity("RELATION", "5326784")).toEqual({ name: "Madrid" });
+  mocks.cityUpsert.mockResolvedValue({ id: "city1", name: "Madrid" });
+  expect(await selectCity("RELATION", "5326784")).toEqual({ id: "city1", name: "Madrid" });
   expect(mocks.fetch.mock.calls[0][0].searchParams.get("osm_ids")).toBe("R5326784");
   expect(mocks.fetch.mock.calls[0][0].searchParams.get("polygon_geojson")).toBe("1");
   expect(mocks.cityUpsert).toHaveBeenCalledWith(expect.objectContaining({
     create: expect.objectContaining({ osmType: "RELATION", osmId: 5326784n, boundary }),
   }));
-  mocks.cityFind.mockResolvedValueOnce({ name: "Madrid", boundary });
-  expect(await selectCity("RELATION", "5326784")).toEqual({ name: "Madrid" });
+  mocks.cityFind.mockResolvedValueOnce({ id: "city1", name: "Madrid", boundary });
+  expect(await selectCity("RELATION", "5326784")).toEqual({ id: "city1", name: "Madrid" });
   expect(mocks.fetch).toHaveBeenCalledOnce();
 });
 

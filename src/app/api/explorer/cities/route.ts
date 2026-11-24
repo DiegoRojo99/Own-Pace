@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { CityLookupError, searchCities, selectCity } from "@/lib/city-lookup";
+import { db } from "@/lib/db";
 
 export const maxDuration = 20;
 
@@ -32,8 +33,21 @@ export async function POST(request: Request) {
       return Response.json({ results: await searchCities(body.query) }, { headers: { "Cache-Control": "private, no-store" } });
     }
     if ("action" in body && body.action === "select" && "osmType" in body &&
-        (body.osmType === "WAY" || body.osmType === "RELATION") && "osmId" in body && typeof body.osmId === "string") {
-      return Response.json({ city: await selectCity(body.osmType, body.osmId) }, { headers: { "Cache-Control": "private, no-store" } });
+        (body.osmType === "WAY" || body.osmType === "RELATION") && "osmId" in body && typeof body.osmId === "string" &&
+        "label" in body && typeof body.label === "string" && body.label.trim().length > 0 && body.label.length <= 500 && !/[\u0000-\u001f\u007f]/.test(body.label)) {
+      const city = await selectCity(body.osmType, body.osmId);
+      // Only add this city to the signed-in user's list.
+      await db.userCity.upsert({
+        where: { userId_cityId: { userId: session.user.id, cityId: city.id } },
+        create: { userId: session.user.id, cityId: city.id, label: body.label.trim() },
+        update: { label: body.label.trim() },
+      });
+      return Response.json({ city }, { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if ("action" in body && body.action === "remove" && "cityId" in body && typeof body.cityId === "string" && /^[a-z0-9]{1,64}$/.test(body.cityId)) {
+      // Only remove this signed-in user's city selection.
+      await db.userCity.deleteMany({ where: { userId: session.user.id, cityId: body.cityId } });
+      return Response.json({ removed: true }, { headers: { "Cache-Control": "private, no-store" } });
     }
     throw new CityLookupError("invalid");
   } catch (error) {

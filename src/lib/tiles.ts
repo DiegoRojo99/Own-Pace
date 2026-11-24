@@ -2,11 +2,21 @@
 export const TILE_ZOOM = 17;
 const MAX_LAT = 85.0511287798066;
 
+/** Project longitude to a fractional tile column, including unwrapped longitudes. */
+export function longitudeToTileX(lon: number, zoom: number): number {
+  return (lon + 180) / 360 * 2 ** zoom;
+}
+
+/** Latitude at the center of a slippy-map tile row. */
+export function tileRowCenterLatitude(y: number, zoom: number): number {
+  return Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 0.5) / 2 ** zoom))) * 180 / Math.PI;
+}
+
 function projected(lon: number, lat: number, zoom: number): [number, number] {
   const n = 2 ** zoom;
   const clamped = Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
   const radians = clamped * Math.PI / 180;
-  return [(lon + 180) / 360 * n, (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * n];
+  return [longitudeToTileX(lon, zoom), (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * n];
 }
 
 /** Convert longitude and latitude to a Web Mercator tile, clamping at the poles. */
