@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   findRuns: vi.fn(),
   createRuns: vi.fn(),
   updateRun: vi.fn(),
+  resetTiles: vi.fn(),
+  resetActivities: vi.fn(),
   fetch: vi.fn(),
 }));
 
@@ -20,7 +22,8 @@ vi.mock("./strava", async (importOriginal) => ({
 vi.mock("./db", () => {
   const tx = {
     user: { findUnique: mocks.findUser, updateMany: mocks.updateUser },
-    activity: { findMany: mocks.findRuns, createMany: mocks.createRuns, update: mocks.updateRun },
+    activity: { findMany: mocks.findRuns, createMany: mocks.createRuns, update: mocks.updateRun, updateMany: mocks.resetActivities },
+    userTile: { deleteMany: mocks.resetTiles },
   };
   return { db: { ...tx, $transaction: (fn: (client: typeof tx) => unknown) => fn(tx) } };
 });
@@ -127,7 +130,7 @@ it("updates but does not count a run replayed at a cursor boundary", async () =>
   await expect(syncRuns("runner")).resolves.toEqual({ count: 0, more: false, refreshed: 0, refreshMore: false });
   expect(mocks.findRuns).toHaveBeenCalledWith({
     where: { userId: "runner", stravaId: { in: [stravaId] } },
-    select: { stravaId: true, name: true },
+    select: { stravaId: true, name: true, summaryPolyline: true, startDate: true, type: true, tilesProcessed: true },
   });
   expect(mocks.updateRun).toHaveBeenCalledWith({
     where: { userId_stravaId: { userId: "runner", stravaId } },
@@ -230,8 +233,18 @@ it("refreshes older GPS routes even when activity names did not change", async (
     where: { userId_stravaId: { userId: "runner", stravaId: BigInt(run.id) } },
     data: { name: run.name, summaryPolyline: route },
   });
+
   expect(mocks.updateRun).toHaveBeenNthCalledWith(2, {
     where: { userId_stravaId: { userId: "runner", stravaId: 123n } },
     data: { name: run.name, summaryPolyline: null },
   });
+});
+
+it("clears explorer data when an already processed route changes", async () => {
+  mocks.findUser.mockResolvedValue({ ...state, syncCursor: newest + 3600 });
+  mocks.fetch.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...run, map: { summary_polyline: route } }]);
+  mocks.findRuns.mockResolvedValue([{ stravaId: BigInt(run.id), name: run.name, summaryPolyline: null, tilesProcessed: true }]);
+  await syncRuns("runner");
+  expect(mocks.resetTiles).toHaveBeenCalledWith({ where: { userId: "runner" } });
+  expect(mocks.resetActivities).toHaveBeenCalledWith({ where: { userId: "runner" }, data: { tilesProcessed: false } });
 });

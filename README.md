@@ -5,6 +5,7 @@ Own Pace is a private running log that brings your Strava stats and kilometre sp
 - Sign in with Strava and sync runs and walks in batches. Press **Sync Strava activities** again if there are more activities to check.
 - Browse your walk history and see your five longest imported walks on the **Walks** page. Older walks are picked up as sync rotates through your activity history.
 - View imported runs and walks with GPS routes together on the full-width **Map** page. Older routes appear as you sync through your history. The OpenStreetMap street layer is off by default; enabling it shares the visible area with OpenStreetMap.
+- Explore your own routes on **Explorer** and turn on **Explorer tiles** on the map. Explorer data is derived only from your own imported activities and is deleted with your account.
 - See the last 12 weeks of running distance, all-time totals, longest run, and this month versus last month.
 - Browse and filter your runs by name, date, distance, and pace. Open a run to see its route and kilometre splits. Routes are fetched from Strava on each visit; splits are saved after the first visit. Map tiles are loaded from OpenStreetMap, which can see the area displayed.
 - Review monthly distance, pace, and heart-rate trends across the last 12 calendar months.
@@ -38,6 +39,14 @@ Built with Next.js App Router, TypeScript, Auth.js v5, Prisma, Neon Postgres, Ta
 
 Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to run the same checks as CI. These checks do not need Strava credentials or a database connection.
 
+## Explorer tiles
+
+Explorer divides the world into standard Web Mercator slippy-map tiles at zoom 14. It traces each segment of Strava's stored precision-5 summary polyline through the tile grid: these summaries are simplified, so looking only at their points would miss tiles between them. Runs, trail runs, and walks with no GPS summary (including manual or treadmill activities) are skipped.
+
+Sync processes pending activities after saving them. On the Explorer page, **Process my activities** continues the oldest pending activities in bounded batches; press it again while any remain. Sync's existing history scan fills in older route summaries without extra Strava requests. **Recalculate tiles** clears your tiles and starts a fresh, resumable rebuild, including after a change to the tile zoom. If a previously processed summary changes during sync, tiles are cleared and rebuilt from the stored summaries. First visits and monthly counts use activity start dates; months use UTC. When older activities arrive later, their earlier visits can change attribution and historical counts.
+
+Malformed summaries are skipped and logged. An unusually large route that crosses more than one million tile boundaries fails processing explicitly instead of blocking the server; it remains pending for investigation.
+
 ## Deploy on Vercel
 
 1. Import the repository as a Next.js project and select Node.js 22.x.
@@ -54,5 +63,6 @@ OAuth access tokens are used only on the server. Incremental sync imports newer 
 - Route heatmap
 - Pace versus heart-rate trend
 - Shoe mileage tracking
+- Fog of war, neighbourhood completion, and XP/badges
 
 MIT licensed.

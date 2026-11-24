@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import { db } from "@/lib/db";
+import { processPendingActivities } from "@/lib/explorer";
 import { calculateCadenceBatch, retryUnavailableCadence } from "@/lib/cadence";
 import { calculateMilestoneBatch, retryUnavailableMilestones } from "@/lib/milestones";
 import { fetchRunDetails } from "@/lib/runs";
@@ -27,10 +28,12 @@ export async function syncRunsAction(): Promise<SyncState> {
   const { id } = await requireUser();
   try {
     const { count, more, refreshed, refreshMore } = await syncRuns(id);
+    const explorer = await processPendingActivities(id, 50);
     return {
       message: [
         `Imported ${count} ${count === 1 ? "activity" : "activities"} and updated ${refreshed} ${refreshed === 1 ? "name" : "names"}.`,
         ...(more || refreshMore ? ["Sync again to check more activities."] : []),
+        ...(explorer.remaining ? [`${explorer.remaining} activities still need explorer processing.`] : []),
       ].join(" "),
     };
   } catch (error) {
@@ -42,6 +45,7 @@ export async function syncRunsAction(): Promise<SyncState> {
     revalidatePath("/map");
     revalidatePath("/milestones");
     revalidatePath("/trends");
+    revalidatePath("/explorer");
   }
 }
 
@@ -118,7 +122,7 @@ export async function signOutAction() {
 export async function deleteMyData(formData: FormData) {
   const { id } = await requireUser();
   if (formData.get("confirmation") !== "DELETE") return;
-  // Only delete the signed-in user; foreign keys cascade to their runs, splits, accounts and sessions.
+  // Only delete the signed-in user; foreign keys cascade to their runs, tiles, splits, accounts and sessions.
   await db.user.deleteMany({ where: { id } });
   await signOut({ redirectTo: "/?reason=deleted" });
 }

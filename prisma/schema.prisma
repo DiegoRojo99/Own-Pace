@@ -25,6 +25,7 @@ model User {
   accounts              Account[]
   sessions              Session[]
   activities            Activity[]
+  tiles                 UserTile[]
 }
 
 model Account {
@@ -78,6 +79,7 @@ model Activity {
   averageHeartrate     Float?
   averageSpeed         Float
   summaryPolyline      String?
+  tilesProcessed       Boolean           @default(false)
   detailFetched        Boolean           @default(false)
   milestoneChecked     Boolean           @default(false)
   milestoneUnavailable Boolean           @default(false)
@@ -91,9 +93,27 @@ model Activity {
   user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   splits               Split[]
   milestoneEfforts     MilestoneEffort[]
+  firstTiles           UserTile[]
 
   @@unique([userId, stravaId])
   @@index([userId, startDate])
+}
+
+model UserTile {
+  id              String    @id @default(cuid())
+  userId          String
+  x               Int
+  y               Int
+  zoom            Int
+  firstActivityId String?
+  firstVisitedAt  DateTime
+  visitCount      Int
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstActivity   Activity? @relation(fields: [firstActivityId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, zoom, x, y])
+  @@index([userId, zoom])
+  @@index([firstActivityId])
 }
 
 enum RunWalkSource {
