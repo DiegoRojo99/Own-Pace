@@ -1,5 +1,5 @@
 /** Fixed slippy-map zoom used for explorer tiles. */
-export const TILE_ZOOM = 14;
+export const TILE_ZOOM = 17;
 const MAX_LAT = 85.0511287798066;
 
 function projected(lon: number, lat: number, zoom: number): [number, number] {

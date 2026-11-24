@@ -41,9 +41,11 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to run 
 
 ## Explorer tiles
 
-Explorer divides the world into standard Web Mercator slippy-map tiles at zoom 14. It traces each segment of Strava's stored precision-5 summary polyline through the tile grid: these summaries are simplified, so looking only at their points would miss tiles between them. Runs, trail runs, and walks with no GPS summary (including manual or treadmill activities) are skipped.
+Explorer divides the world into standard Web Mercator slippy-map tiles at zoom 17 (about 235 m across at 40° latitude; size varies with latitude). It traces each segment of Strava's stored precision-5 summary polyline through the tile grid: these summaries are simplified, so looking only at their points would miss tiles between them. Runs, trail runs, and walks with no GPS summary (including manual or treadmill activities) are skipped.
 
 Sync processes pending activities after saving them. On the Explorer page, **Process my activities** continues the oldest pending activities in bounded batches; press it again while any remain. Sync's existing history scan fills in older route summaries without extra Strava requests. **Recalculate tiles** clears your tiles and starts a fresh, resumable rebuild, including after a change to the tile zoom. If a previously processed summary changes during sync, tiles are cleared and rebuilt from the stored summaries. First visits and monthly counts use activity start dates; months use UTC. When older activities arrive later, their earlier visits can change attribution and historical counts.
+
+The migration to zoom 17 clears the old derived tiles and makes previously processed activities pending again. After deploying it, sync or use **Process my activities** to rebuild the smaller tiles from stored routes; no extra Strava requests are needed. Counts will be incomplete until processing finishes.
 
 Malformed summaries are skipped and logged. An unusually large route that crosses more than one million tile boundaries fails processing explicitly instead of blocking the server; it remains pending for investigation.
 

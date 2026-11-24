@@ -21,8 +21,9 @@ beforeEach(() => {
 
 it("claims each activity once and scopes the claim to its owner", async () => {
   mocks.findFirst.mockResolvedValueOnce({ id: "run", startDate: new Date("2026-01-01"), summaryPolyline: "??" }).mockResolvedValueOnce(null);
-  mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ x: 8192, y: 8192, inserted: true }]).mockResolvedValueOnce([]);
-  expect(await processActivityTiles({ id: "run", userId: "owner" })).toEqual(["8192/8192"]);
+  mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ x: 65536, y: 65536, inserted: true }]).mockResolvedValueOnce([]);
+  expect(await processActivityTiles({ id: "run", userId: "owner" })).toEqual(["65536/65536"]);
+  expect(mocks.query.mock.calls[1][0].values).toEqual(expect.arrayContaining([65536, 17]));
   expect(await processActivityTiles({ id: "run", userId: "owner" })).toEqual([]);
   expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({
     where: expect.objectContaining({ id: "run", userId: "owner", tilesProcessed: false }),
