@@ -1,0 +1,20 @@
+BEGIN;
+
+ALTER TABLE "City" ADD COLUMN "tileZoom" INTEGER,
+    ADD COLUMN "tileNextX" INTEGER,
+    ADD COLUMN "tileNextY" INTEGER,
+    ADD COLUMN "tilesReady" BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE "UserCity" (
+    "userId" TEXT NOT NULL,
+    "cityId" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "addedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UserCity_pkey" PRIMARY KEY ("userId", "cityId")
+);
+
+CREATE INDEX "UserCity_cityId_idx" ON "UserCity"("cityId");
+ALTER TABLE "UserCity" ADD CONSTRAINT "UserCity_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UserCity" ADD CONSTRAINT "UserCity_cityId_fkey" FOREIGN KEY ("cityId") REFERENCES "City"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+COMMIT;

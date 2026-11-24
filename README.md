@@ -5,6 +5,7 @@ Own Pace is a private running log that brings your Strava stats and kilometre sp
 - Sign in with Strava and sync runs and walks in batches. Press **Sync Strava activities** again if there are more activities to check.
 - Browse your walk history and see your five longest imported walks on the **Walks** page. Older walks are picked up as sync rotates through your activity history.
 - View imported runs and walks with GPS routes together on the full-width **Map** page. Older routes appear as you sync through your history. The OpenStreetMap street layer is off by default; enabling it shares the visible area with OpenStreetMap.
+- Explore your own routes on **Explorer** and turn on **Explorer tiles** on the map. Explorer data is derived only from your own imported activities and is deleted with your account.
 - See the last 12 weeks of running distance, all-time totals, longest run, and this month versus last month.
 - Browse and filter your runs by name, date, distance, and pace. Open a run to see its route and kilometre splits. Routes are fetched from Strava on each visit; splits are saved after the first visit. Map tiles are loaded from OpenStreetMap, which can see the area displayed.
 - Review monthly distance, pace, and heart-rate trends across the last 12 calendar months.
@@ -38,6 +39,26 @@ Built with Next.js App Router, TypeScript, Auth.js v5, Prisma, Neon Postgres, Ta
 
 Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to run the same checks as CI. These checks do not need Strava credentials or a database connection.
 
+## Explorer tiles
+
+Explorer divides the world into standard Web Mercator slippy-map tiles at zoom 17 (about 235 m across at 40° latitude; size varies with latitude). It traces each segment of Strava's stored precision-5 summary polyline through the tile grid: these summaries are simplified, so looking only at their points would miss tiles between them. Runs, trail runs, and walks with no GPS summary (including manual or treadmill activities) are skipped.
+
+Sync processes pending activities after saving them. On the Explorer page, **Process my activities** continues the oldest pending activities in bounded batches; press it again while any remain. Sync's existing history scan fills in older route summaries without extra Strava requests. **Recalculate tiles** clears your tiles and starts a fresh, resumable rebuild, including after a change to the tile zoom. If a previously processed summary changes during sync, tiles are cleared and rebuilt from the stored summaries. First visits and monthly counts use activity start dates; months use UTC. When older activities arrive later, their earlier visits can change attribution and historical counts.
+
+The migration to zoom 17 clears the old derived tiles and makes previously processed activities pending again. After deploying it, sync or use **Process my activities** to rebuild the smaller tiles from stored routes; no extra Strava requests are needed. Counts will be incomplete until processing finishes.
+
+Malformed summaries are skipped and logged. An unusually large route that crosses more than one million tile boundaries fails processing explicitly instead of blocking the server; it remains pending for investigation.
+
+### City lookup
+
+On Explorer, search for a city and country and choose an administrative boundary to add it to your private city list. Searches are explicitly submitted, never autocomplete. The search text is sent to OpenStreetMap's Nominatim service; do not enter personal information. Your activity routes are not sent. Search results and unavailable boundary lookups are cached for 30 days using hashed keys; selected public boundaries are cached in the database. Previously cached cities were not saved to a personal list, so select them again to track them.
+
+The public Nominatim service has a [usage policy](https://operations.osmfoundation.org/policies/nominatim/): one request per second across the whole application, no autocomplete or systematic queries, identification, caching, and OpenStreetMap attribution. A shared database lease limits requests across server instances; a failed or crashed request can temporarily delay another lookup. OpenStreetMap data is available under the [ODbL](https://www.openstreetmap.org/copyright). To switch to another compatible service without changing code, set `CITY_NOMINATIM_URL` to its HTTPS base URL in the server environment.
+
+Only administrative OSM ways or relations with usable Polygon or MultiPolygon geometry are accepted; some cities may not have a suitable search result. Boundaries are not automatically refreshed yet. The shared tile catalog includes each tile whose center is strictly inside the city boundary, including water or inaccessible land; centers exactly on a boundary are excluded. Polygon holes and disjoint areas are respected. City progress is your claimed city tiles divided by all city tiles; it can increase while activities are still pending.
+
+Preparing a city runs in resumable batches while Explorer is open. Other users selecting the same city reuse its public tile catalog. A percentage appears only after preparation finishes; it resumes if you leave and return. Private activity claims remain in `UserTile` and match city tiles by `(zoom, x, y)`, filtered by the signed-in user. Removing a city does not delete your claims; deleting your account removes your private city selections and claims.
+
 ## Deploy on Vercel
 
 1. Import the repository as a Next.js project and select Node.js 22.x.
@@ -54,5 +75,6 @@ OAuth access tokens are used only on the server. Incremental sync imports newer 
 - Route heatmap
 - Pace versus heart-rate trend
 - Shoe mileage tracking
+- Fog of war, neighbourhood completion, and XP/badges
 
 MIT licensed.

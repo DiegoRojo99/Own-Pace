@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { walkType } from "@/lib/activity-types"
 import { formatDate, formatDistance } from "@/lib/format"
 import { decodePolyline } from "@/lib/polyline"
+import { TILE_ZOOM, tileToBounds } from "@/lib/tiles"
 
 type ActivityRoute = {
   id: string
@@ -26,6 +27,8 @@ export function ActivityMap({ routes }: { routes: ActivityRoute[] }) {
   const [showTiles, setShowTiles] = useState(false)
   const [error, setError] = useState(false)
   const [tileError, setTileError] = useState(false)
+  const [showExplorer, setShowExplorer] = useState(false)
+  const [explorerStatus, setExplorerStatus] = useState("")
 
   useEffect(() => {
     let disposed = false
@@ -93,6 +96,31 @@ export function ActivityMap({ routes }: { routes: ActivityRoute[] }) {
     return () => { tiles.remove() }
   }, [showTiles, view])
 
+  useEffect(() => {
+    if (!showExplorer || !view) return
+    const controller = new AbortController()
+    const pane = view.map.getPane("explorer") ?? view.map.createPane("explorer")
+    pane.style.zIndex = "350"
+    pane.style.pointerEvents = "none"
+    const renderer = view.leaflet.canvas({ pane: "explorer" })
+    const group = view.leaflet.layerGroup().addTo(view.map)
+    fetch("/api/explorer/tiles", { signal: controller.signal }).then(async (response) => {
+      if (!response.ok) throw new Error("Could not load explorer tiles.")
+      const data: { zoom: number; tiles: [number, number][] } = await response.json()
+      if (controller.signal.aborted) return
+      if (data.zoom !== TILE_ZOOM) throw new Error("Explorer tile zoom does not match.")
+      for (const [x, y] of data.tiles) {
+        view.leaflet.rectangle(tileToBounds(x, y, data.zoom), {
+          renderer, pane: "explorer", color: "#216346", weight: 1, opacity: 0.45, fillOpacity: 0.15, interactive: false,
+        }).addTo(group)
+      }
+      setExplorerStatus(data.tiles.length ? "" : "No explored tiles yet. Visit Explorer to process your activities.")
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setExplorerStatus(error instanceof Error ? error.message : "Could not load explorer tiles.")
+    })
+    return () => { controller.abort(); group.remove(); renderer.remove() }
+  }, [showExplorer, view])
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-card px-4 py-2 text-sm sm:px-6">
@@ -107,8 +135,13 @@ export function ActivityMap({ routes }: { routes: ActivityRoute[] }) {
         }}>
           {showTiles ? "Hide street map" : "Show street map"}
         </Button>
+        <Button type="button" size="sm" variant="outline" disabled={!view || error} aria-pressed={showExplorer} onClick={() => {
+          setExplorerStatus(showExplorer ? "" : "Loading explorer tiles…")
+          setShowExplorer((shown) => !shown)
+        }}>Explorer tiles: {showExplorer ? "on" : "off"}</Button>
         <span id="basemap-privacy" className="text-xs text-muted-foreground">OpenStreetMap can see the area displayed when enabled.</span>
       </div>
+      {showExplorer && explorerStatus && <p role="status" className="border-b border-border bg-card px-4 py-2 text-sm text-muted-foreground">{explorerStatus}</p>}
       <div className="relative isolate flex min-h-64 flex-1 bg-muted">
         <div ref={container} className="flex-1" role="region" aria-label="Activity routes map" />
         {(error || (showTiles && tileError) || !view || !view.bounds.isValid() || view.skipped > 0) && (

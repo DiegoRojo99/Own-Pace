@@ -1,12 +1,12 @@
 import "server-only";
-import { runTypes, walkType } from "./activity-types";
+import { EXPLORER_ACTIVITY_TYPES, walkType } from "./activity-types";
 import { db } from "./db";
 import { StravaError, stravaFetch } from "./strava";
 
 const PAGE_SIZE = 100;
 const PRISMA_INT_MAX = 2_147_483_647;
 const STRAVA_ID_MAX = 9_223_372_036_854_775_807n;
-const importedTypes = new Set([...runTypes, walkType]);
+const importedTypes = new Set(EXPLORER_ACTIVITY_TYPES);
 
 type SummaryActivity = {
   id: number | string;
@@ -163,14 +163,17 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
     // The per-user claim serializes writers; replayed activities refresh cached summaries without counting as new.
     const byId = new Map(summaries);
     let refreshed = 0;
+    let explorerNeedsReset = false;
     const existing = byId.size ? await tx.activity.findMany({
       where: { userId, stravaId: { in: [...byId.keys()] } },
-      select: { stravaId: true, name: true },
+      select: { stravaId: true, name: true, summaryPolyline: true, startDate: true, type: true, tilesProcessed: true },
     }) : [];
-    for (const { stravaId, name: existingName } of existing) {
+    for (const row of existing) {
+      const { stravaId, name: existingName } = row;
       const summary = byId.get(stravaId);
       if (!summary) continue;
       if (existingName !== summary.name) refreshed++;
+      if (row.tilesProcessed && (row.summaryPolyline !== summary.summaryPolyline || row.startDate.getTime() !== summary.startDate.getTime() || row.type !== summary.type)) explorerNeedsReset = true;
       await tx.activity.update({
         where: { userId_stravaId: { userId, stravaId } },
         data: summary,
@@ -180,7 +183,7 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
     if (olderActivities.size) {
       const historicalRows = await tx.activity.findMany({
         where: { userId, stravaId: { in: [...olderActivities.keys()] } },
-        select: { stravaId: true, name: true, summaryPolyline: true },
+        select: { stravaId: true, name: true, summaryPolyline: true, tilesProcessed: true },
       });
       for (const existing of historicalRows) {
         const activity = olderActivities.get(existing.stravaId)?.activity;
@@ -189,6 +192,7 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
         const { name } = activity;
         const polyline = summaryPolyline(activity);
         if (name === existing.name && polyline === existing.summaryPolyline) continue;
+        if (existing.tilesProcessed && polyline !== existing.summaryPolyline) explorerNeedsReset = true;
         await tx.activity.update({
           where: { userId_stravaId: { userId, stravaId: existing.stravaId } },
           data: { name, summaryPolyline: polyline },
@@ -205,6 +209,10 @@ export async function syncRuns(userId: string): Promise<{ count: number; more: b
       data: [...byId].map(([stravaId, summary]) => ({ userId, stravaId, ...summary })),
       skipDuplicates: true,
     })).count : 0;
+    if (explorerNeedsReset) {
+      await tx.userTile.deleteMany({ where: { userId } });
+      await tx.activity.updateMany({ where: { userId }, data: { tilesProcessed: false } });
+    }
     return { count, more, refreshed, refreshMore };
   }, { timeout: 10_000 });
 }

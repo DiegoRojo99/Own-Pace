@@ -1,13 +1,13 @@
 import { ActivityMap } from "@/components/activity-map"
 import { SyncRunsForm } from "@/components/sync-runs-form"
-import { runTypes, walkType } from "@/lib/activity-types"
+import { EXPLORER_ACTIVITY_TYPES } from "@/lib/activity-types"
 import { db } from "@/lib/db"
 import { requireUser } from "@/lib/session"
 
 export default async function MapPage() {
   const { id } = await requireUser()
   const routes = await db.activity.findMany({
-    where: { userId: id, type: { in: [...runTypes, walkType] }, summaryPolyline: { not: null } },
+    where: { userId: id, type: { in: EXPLORER_ACTIVITY_TYPES }, summaryPolyline: { not: null } },
     select: { id: true, name: true, type: true, startDate: true, distance: true, summaryPolyline: true },
     orderBy: [{ startDate: "asc" }, { id: "asc" }],
   })

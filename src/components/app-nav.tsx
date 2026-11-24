@@ -11,6 +11,7 @@ const links = [
   { href: "/runs", label: "Runs" },
   { href: "/walks", label: "Walks" },
   { href: "/map", label: "Map" },
+  { href: "/explorer", label: "Explorer" },
   { href: "/milestones", label: "Personal Records" },
   { href: "/settings", label: "Settings" },
 ]

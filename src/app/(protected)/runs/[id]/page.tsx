@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatDistance, formatDuration, formatPace, paceSecondsPerKm } from "@/lib/format"
+import { db } from "@/lib/db"
+import { TILE_ZOOM } from "@/lib/tiles"
 import { getRun } from "@/lib/runs"
 import { requireUser } from "@/lib/session"
 
@@ -19,6 +21,8 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const user = await requireUser()
   const run = await getRun(user.id, id)
   if (!run) notFound()
+  // Count tiles only for this signed-in user's run.
+  const unlocked = await db.userTile.count({ where: { userId: user.id, firstActivityId: run.id, zoom: TILE_ZOOM } })
 
   const metrics = [
     { label: "Distance", value: formatDistance(run.distance) },
@@ -40,6 +44,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         <Link href="/runs"><span aria-hidden="true">←</span> All runs</Link>
       </Button>
       <PageHeading eyebrow="Run detail" title={run.name} description={formatDate(run.startDate)} />
+      {unlocked > 0 && <p className="text-sm text-muted-foreground">This run unlocked {unlocked} new {unlocked === 1 ? "tile" : "tiles"}.</p>}
       <Card>
         <CardHeader>
           <CardTitle>Run summary</CardTitle>

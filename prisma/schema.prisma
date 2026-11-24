@@ -25,6 +25,8 @@ model User {
   accounts              Account[]
   sessions              Session[]
   activities            Activity[]
+  tiles                 UserTile[]
+  cities                UserCity[]
 }
 
 model Account {
@@ -78,6 +80,7 @@ model Activity {
   averageHeartrate     Float?
   averageSpeed         Float
   summaryPolyline      String?
+  tilesProcessed       Boolean           @default(false)
   detailFetched        Boolean           @default(false)
   milestoneChecked     Boolean           @default(false)
   milestoneUnavailable Boolean           @default(false)
@@ -91,9 +94,95 @@ model Activity {
   user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   splits               Split[]
   milestoneEfforts     MilestoneEffort[]
+  firstTiles           UserTile[]
 
   @@unique([userId, stravaId])
   @@index([userId, startDate])
+}
+
+model UserTile {
+  id              String    @id @default(cuid())
+  userId          String
+  x               Int
+  y               Int
+  zoom            Int
+  firstActivityId String?
+  firstVisitedAt  DateTime
+  visitCount      Int
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstActivity   Activity? @relation(fields: [firstActivityId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, zoom, x, y])
+  @@index([userId, zoom])
+  @@index([zoom, x, y, userId])
+  @@index([firstActivityId])
+}
+
+model Tile {
+  zoom   Int
+  x      Int
+  y      Int
+  cities CityTile[]
+
+  @@id([zoom, x, y])
+}
+
+enum OsmElementType {
+  WAY
+  RELATION
+}
+
+model City {
+  id                String         @id @default(cuid())
+  name              String
+  osmType           OsmElementType
+  osmId             BigInt
+  boundary          Json
+  boundaryFetchedAt DateTime       @default(now())
+  tileZoom          Int?
+  tileNextX         Int?
+  tileNextY         Int?
+  tilesReady        Boolean        @default(false)
+  tiles             CityTile[]
+  users             UserCity[]
+
+  @@unique([osmType, osmId])
+}
+
+model UserCity {
+  userId  String
+  cityId  String
+  label   String
+  addedAt DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city    City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, cityId])
+  @@index([cityId])
+}
+
+model CityTile {
+  cityId String
+  zoom   Int
+  x      Int
+  y      Int
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  tile   Tile   @relation(fields: [zoom, x, y], references: [zoom, x, y], onDelete: Restrict)
+
+  @@id([cityId, zoom, x, y])
+  @@index([zoom, x, y])
+}
+
+model CityLookupCache {
+  key       String   @id
+  results   Json
+  expiresAt DateTime
+}
+
+model CityLookupRateLimit {
+  id           Int      @id
+  leaseId      String
+  blockedUntil DateTime
 }
 
 enum RunWalkSource {
