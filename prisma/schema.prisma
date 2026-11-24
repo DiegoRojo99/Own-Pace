@@ -155,6 +155,18 @@ model CityTile {
   @@index([zoom, x, y])
 }
 
+model CityLookupCache {
+  key       String   @id
+  results   Json
+  expiresAt DateTime
+}
+
+model CityLookupRateLimit {
+  id           Int      @id
+  leaseId      String
+  blockedUntil DateTime
+}
+
 enum RunWalkSource {
   CADENCE
   SPEED

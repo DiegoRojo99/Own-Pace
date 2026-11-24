@@ -1,0 +1,47 @@
+import { beforeEach, expect, it, vi } from "vitest";
+import { POST } from "./route";
+import { CityLookupError } from "@/lib/city-lookup";
+
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), search: vi.fn(), select: vi.fn() }));
+vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/city-lookup", () => ({
+  CityLookupError: class CityLookupError extends Error { constructor(public code: string) { super(code); } },
+  searchCities: mocks.search, selectCity: mocks.select,
+}));
+
+function request(body: unknown, origin = "https://own.example") {
+  return new Request("https://own.example/api/explorer/cities", {
+    method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.auth.mockResolvedValue({ user: { id: "owner" } });
+});
+
+it("requires authentication and same-origin requests", async () => {
+  mocks.auth.mockResolvedValueOnce(null);
+  expect((await POST(request({ action: "search", query: "Madrid" }))).status).toBe(401);
+  expect((await POST(request({ action: "search", query: "Madrid" }, "https://other.example"))).status).toBe(403);
+  expect(mocks.search).not.toHaveBeenCalled();
+});
+
+it("searches and selects only on explicit authenticated requests", async () => {
+  mocks.search.mockResolvedValue([{ name: "Madrid" }]);
+  const search = await POST(request({ action: "search", query: "Madrid" }));
+  expect(await search.json()).toEqual({ results: [{ name: "Madrid" }] });
+  expect(search.headers.get("cache-control")).toBe("private, no-store");
+  mocks.select.mockResolvedValue({ name: "Madrid" });
+  expect((await POST(request({ action: "select", osmType: "RELATION", osmId: "42" }))).status).toBe(200);
+  expect(mocks.select).toHaveBeenCalledWith("RELATION", "42");
+  expect((await POST(request({ action: "select", osmType: "NODE", osmId: "42" }))).status).toBe(400);
+});
+
+it("returns rate-limit and malformed-input errors without exposing details", async () => {
+  mocks.search.mockRejectedValueOnce(new CityLookupError("rate-limit"));
+  const limited = await POST(request({ action: "search", query: "Madrid" }));
+  expect(limited.status).toBe(429);
+  expect((await limited.json()).error).toContain("rate-limited");
+  expect((await POST(request({ action: "search", query: "x".repeat(5000) }))).status).toBe(400);
+});

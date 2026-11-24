@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ExplorerActions } from "@/components/explorer-actions"
 import { ExplorerChart } from "@/components/explorer-chart"
+import { CitySearch } from "@/components/city-search"
 import { PageHeading } from "@/components/page-heading"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EXPLORER_ACTIVITY_TYPES, walkType } from "@/lib/activity-types"
@@ -40,6 +41,10 @@ export default async function ExplorerPage() {
     <PageHeading eyebrow="Your activity map" title="Explorer" description="Discover the tiles your runs and walks have visited." />
     <ExplorerActions pending={pending} />
     <p className="text-sm text-muted-foreground">{skipped} activities without GPS summaries are skipped (such as treadmill or manual activities). Months use UTC.</p>
+    <Card>
+      <CardHeader><CardTitle>Find a city</CardTitle><CardDescription>Find and cache a city boundary for future exploration progress.</CardDescription></CardHeader>
+      <CardContent><CitySearch /></CardContent>
+    </Card>
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Explorer statistics">
       {stats.map((stat) => <Card key={stat.label}><CardHeader><CardDescription>{stat.label}</CardDescription><CardTitle className="text-2xl tabular-nums">{stat.value}</CardTitle></CardHeader></Card>)}
     </section>
