@@ -113,7 +113,46 @@ model UserTile {
 
   @@unique([userId, zoom, x, y])
   @@index([userId, zoom])
+  @@index([zoom, x, y, userId])
   @@index([firstActivityId])
+}
+
+model Tile {
+  zoom   Int
+  x      Int
+  y      Int
+  cities CityTile[]
+
+  @@id([zoom, x, y])
+}
+
+enum OsmElementType {
+  WAY
+  RELATION
+}
+
+model City {
+  id                String         @id @default(cuid())
+  name              String
+  osmType           OsmElementType
+  osmId             BigInt
+  boundary          Json
+  boundaryFetchedAt DateTime       @default(now())
+  tiles             CityTile[]
+
+  @@unique([osmType, osmId])
+}
+
+model CityTile {
+  cityId String
+  zoom   Int
+  x      Int
+  y      Int
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  tile   Tile   @relation(fields: [zoom, x, y], references: [zoom, x, y], onDelete: Restrict)
+
+  @@id([cityId, zoom, x, y])
+  @@index([zoom, x, y])
 }
 
 enum RunWalkSource {

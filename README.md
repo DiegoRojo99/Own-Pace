@@ -49,6 +49,12 @@ The migration to zoom 17 clears the old derived tiles and makes previously proce
 
 Malformed summaries are skipped and logged. An unusually large route that crosses more than one million tile boundaries fails processing explicitly instead of blocking the server; it remains pending for investigation.
 
+### City exploration foundation
+
+The database has a shared tile catalog and city-to-tile links, ready for a future city progress feature. Cities are identified by an OpenStreetMap way or relation and can store a cached GeoJSON boundary and fetch date. The planned rule is to include a tile when its center is inside the city boundary. City lookup, boundary fetching, tile assignment, and percentages are not implemented yet.
+
+Private activity claims remain in `UserTile` and match city tiles by `(zoom, x, y)`; they are not foreign-keyed to the shared catalog. This allows claims outside known cities and avoids adding activity-derived locations to shared tiles. Future city progress queries must filter claims by the signed-in user. Existing claims are preserved by the foundation migration.
+
 ## Deploy on Vercel
 
 1. Import the repository as a Next.js project and select Node.js 22.x.
