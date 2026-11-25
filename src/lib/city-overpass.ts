@@ -3,11 +3,16 @@ import { randomUUID } from "node:crypto";
 import { db } from "./db";
 import type { CityBoundary } from "./city-lookup-data";
 import { runnableTileKeys, RUNNABLE_HIGHWAYS, walkabilityBounds } from "./city-walkability";
-import { OSM_USER_AGENT, osmResponseText } from "./osm-response";
+import { OSM_USER_AGENT, osmResponseText, osmRetrySeconds } from "./osm-response";
 import { TILE_ZOOM } from "./tiles";
 
+const UNAVAILABLE_COOLDOWN = "overpass:unavailable";
+const RATE_LIMIT_COOLDOWN = "overpass:rate-limit";
+
 export class CityWalkabilityError extends Error {
-  constructor(public code: "rate-limit" | "upstream") { super(`OSM walkability ${code}`); }
+  constructor(public code: "busy" | "rate-limit" | "unavailable" | "upstream", public retryAfter = 60) {
+    super(`OSM walkability ${code}`);
+  }
 }
 
 export function overpassQuery(boundary: CityBoundary) {
@@ -27,7 +32,7 @@ export function overpassQuery(boundary: CityBoundary) {
     `is_in(${(south + north) / 2},${(west + east) / 2})->.enclosing${index};
     (${filters.flatMap((filter) => [`area.enclosing${index}${filter};`, `way.enclosing${index}${filter};`]).join("")})->.areas${index};`);
   const pivots = enclosing.map((_, index) => `way.areas${index};way(pivot.areas${index});rel(pivot.areas${index});`).join("");
-  return `[out:json][timeout:20];${enclosing.join("\n")}(${queries.join("")}${pivots});out geom;`;
+  return `[out:json][timeout:20][maxsize:134217728];${enclosing.join("\n")}(${queries.join("")}${pivots});out geom;`;
 }
 
 /** Fetch only public OSM data, never activity routes or user identifiers. */
@@ -44,36 +49,63 @@ export async function fetchRunnableTiles(boundary: CityBoundary): Promise<{ zoom
     WHERE "CityLookupRateLimit"."blockedUntil" <= clock_timestamp()
     RETURNING "leaseId"
   `;
-  if (!lease.length) throw new CityWalkabilityError("rate-limit");
+  if (!lease.length) {
+    const [waiting] = await db.$queryRaw<{ leaseId: string; retryAfter: number }[]>`
+      SELECT "leaseId", GREATEST(1, CEIL(EXTRACT(EPOCH FROM ("blockedUntil" - clock_timestamp()))))::int AS "retryAfter"
+      FROM "CityLookupRateLimit" WHERE "id" = 2
+    `;
+    if (waiting?.leaseId === UNAVAILABLE_COOLDOWN) throw new CityWalkabilityError("unavailable", waiting.retryAfter);
+    if (waiting?.leaseId === RATE_LIMIT_COOLDOWN) throw new CityWalkabilityError("rate-limit", waiting.retryAfter);
+    throw new CityWalkabilityError("busy", waiting?.retryAfter ?? 5);
+  }
   let cooldown = 1;
+  let cooldownMarker: string = leaseId;
+  const signal = AbortSignal.timeout(25_000);
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: { "User-Agent": OSM_USER_AGENT, "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ data: overpassQuery(boundary) }),
-      signal: AbortSignal.timeout(25_000), redirect: "error", cache: "no-store",
+      signal, redirect: "error", cache: "no-store",
+    }).catch((error: unknown) => {
+      console.error("Could not reach OSM walkability:", error instanceof Error ? error.message : "UnknownError");
+      cooldown = 60;
+      cooldownMarker = UNAVAILABLE_COOLDOWN;
+      throw new CityWalkabilityError("unavailable", cooldown);
     });
-    if (response.status === 429 || response.status === 504) {
-      const retry = response.headers.get("retry-after") ?? "";
-      const seconds = /^\d+$/.test(retry) ? Number(retry) : Math.ceil((Date.parse(retry) - Date.now()) / 1000);
-      cooldown = Number.isSafeInteger(seconds) && seconds > 0 ? seconds : 60;
+    if ([429, 500, 502, 503, 504].includes(response.status)) {
+      cooldown = osmRetrySeconds(response);
       await response.body?.cancel();
-      throw new CityWalkabilityError("rate-limit");
+      cooldownMarker = response.status === 429 ? RATE_LIMIT_COOLDOWN : UNAVAILABLE_COOLDOWN;
+      console.warn(`OSM walkability service returned HTTP ${response.status}; retry after ${cooldown} seconds.`);
+      throw new CityWalkabilityError(response.status === 429 ? "rate-limit" : "unavailable", cooldown);
     }
     if (!response.ok) {
       await response.body?.cancel();
       throw new CityWalkabilityError("upstream");
     }
     const data: unknown = JSON.parse(await osmResponseText(response, 32 * 1024 * 1024));
+    if (data && typeof data === "object" && "remark" in data && typeof data.remark === "string" &&
+        /timed out|timeout|out of memory/i.test(data.remark)) {
+      console.error("OSM walkability query failed:", data.remark);
+      cooldown = 60;
+      cooldownMarker = UNAVAILABLE_COOLDOWN;
+      throw new CityWalkabilityError("unavailable", cooldown);
+    }
     return { zoom: TILE_ZOOM, keys: runnableTileKeys(data, boundary, TILE_ZOOM) };
   } catch (error) {
     if (error instanceof CityWalkabilityError) throw error;
     console.error("Could not load OSM walkability:", error instanceof Error ? error.message : "UnknownError");
+    if (signal.aborted) {
+      cooldown = 60;
+      cooldownMarker = UNAVAILABLE_COOLDOWN;
+      throw new CityWalkabilityError("unavailable", cooldown);
+    }
     throw new CityWalkabilityError("upstream");
   } finally {
     await db.$executeRaw`
       UPDATE "CityLookupRateLimit"
-      SET "blockedUntil" = clock_timestamp() + (${cooldown} * INTERVAL '1 second')
+      SET "leaseId" = ${cooldownMarker}, "blockedUntil" = clock_timestamp() + (${cooldown} * INTERVAL '1 second')
       WHERE "id" = 2 AND "leaseId" = ${leaseId}
     `;
   }

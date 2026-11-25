@@ -55,10 +55,33 @@ it("writes and finishes a batch atomically, and skips completed cities", async (
   expect(mocks.cityUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
     tilesReady: true, tileZoom: TILE_ZOOM, runnableTiles: { zoom: TILE_ZOOM, keys: [`${x}/${y}`] },
   }) }));
-  mocks.findSelection.mockResolvedValue({ cityId: "city", city: { ...city, tileZoom: TILE_ZOOM, tilesReady: true } });
+  mocks.findSelection.mockResolvedValue({ cityId: "city", city: {
+    ...city, tileZoom: TILE_ZOOM, tilesReady: true, runnableTiles: { zoom: TILE_ZOOM, keys: [`${x}/${y}`] },
+  } });
   expect(await prepareCityTiles("owner", "city")).toEqual({ done: true });
   expect(mocks.tileCreate).toHaveBeenCalledOnce();
   expect(mocks.fetchRunnable).toHaveBeenCalledOnce();
+});
+
+it.each([true, false])("rebuilds completed unfiltered catalogs, including concurrent legacy writes (initially ready: %s)", async (initiallyReady) => {
+  const [[south, west], [north]] = tileToBounds(65000, 49000, TILE_ZOOM);
+  const [, [, east]] = tileToBounds(65001, 49000, TILE_ZOOM);
+  const city = {
+    tileZoom: TILE_ZOOM, tilesReady: initiallyReady, tileNextX: null, tileNextY: null,
+    boundaryFetchedAt: new Date(), runnableTiles: null,
+    boundary: { type: "Polygon", coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]] },
+  };
+  mocks.findSelection.mockResolvedValue({ cityId: "city", city });
+  mocks.cityFind.mockResolvedValue({ ...city, tilesReady: true });
+  mocks.fetchRunnable.mockResolvedValue({ zoom: TILE_ZOOM, keys: ["65000/49000"] });
+  expect(await prepareCityTiles("owner", "city")).toEqual({ done: true });
+  expect(mocks.cityTileDelete).toHaveBeenCalledWith({ where: { cityId: "city" } });
+  expect(mocks.cityTileCreate).toHaveBeenCalledWith({
+    data: [{ cityId: "city", x: 65000, y: 49000, zoom: TILE_ZOOM }], skipDuplicates: true,
+  });
+  expect(mocks.cityUpdate.mock.calls[0][0].data).toMatchObject({
+    tilesReady: true, runnableTiles: { zoom: TILE_ZOOM, keys: ["65000/49000"] },
+  });
 });
 
 it("filters inaccessible tiles and reuses the saved public mask without another request", async () => {

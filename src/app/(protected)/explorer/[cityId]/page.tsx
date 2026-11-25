@@ -11,10 +11,10 @@ export default async function CityPage({ params }: { params: Promise<{ cityId: s
   // Only cities the signed-in user has added are visible.
   const userCity = await db.userCity.findFirst({
     where: { userId: id, cityId },
-    select: { label: true, city: { select: { name: true, tilesReady: true, tileZoom: true } } },
+    select: { label: true, city: { select: { name: true, tilesReady: true, tileZoom: true, runnableTiles: true } } },
   })
   if (!userCity) notFound()
-  if (!userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM) redirect("/explorer")
+  if (!userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM || userCity.city.runnableTiles === null) redirect("/explorer")
 
   const [cityTiles, userTiles] = await Promise.all([
     db.cityTile.findMany({ where: { cityId, zoom: TILE_ZOOM }, select: { x: true, y: true } }),

@@ -26,6 +26,12 @@ it("requests public highways and restriction geometries with identification and 
   expect(options.headers["User-Agent"]).toContain("OwnPace");
   const query = options.body.get("data");
   expect(query).toBe(overpassQuery(boundary));
+  const timeout = Number(query.match(/\[timeout:(\d+)\]/)?.[1]);
+  const memory = Number(query.match(/\[maxsize:(\d+)\]/)?.[1]);
+  expect(timeout).toBeGreaterThan(0);
+  expect(timeout).toBeLessThanOrEqual(25);
+  expect(memory).toBeGreaterThan(0);
+  expect(memory).toBeLessThanOrEqual(128 * 1024 * 1024);
   expect(query).toContain('way["highway"');
   expect(query).not.toContain("motorway");
   expect(query).toContain('rel["landuse"="military"]');
@@ -37,20 +43,54 @@ it("requests public highways and restriction geometries with identification and 
 });
 
 it("enforces the shared Overpass lease independently of Nominatim", async () => {
-  mocks.query.mockResolvedValue([]);
-  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "rate-limit" });
+  mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ leaseId: "active-lease", retryAfter: 23 }]);
+  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "busy", retryAfter: 23 });
   expect(mocks.fetch).not.toHaveBeenCalled();
+  expect(mocks.execute).not.toHaveBeenCalled();
 });
 
 it("respects throttling without saving a fallback mask", async () => {
   mocks.fetch.mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "120" } }));
-  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "rate-limit" });
-  expect(mocks.execute.mock.calls[0][1]).toBe(120);
+  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "rate-limit", retryAfter: 120 });
+  expect(mocks.execute.mock.calls[0].slice(1, 3)).toEqual(["overpass:rate-limit", 120]);
+});
+
+it.each([502, 503, 504])("backs off globally on provider capacity failures (%s)", async (status) => {
+  mocks.fetch.mockResolvedValue(new Response("At capacity", { status, headers: { "Retry-After": "90" } }));
+  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "unavailable", retryAfter: 90 });
+  expect(mocks.execute.mock.calls[0].slice(1, 3)).toEqual(["overpass:unavailable", 90]);
+});
+
+it.each([new Error("network"), new DOMException("Timeout", "TimeoutError")])("backs off globally after transport failures", async (error) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.fetch.mockRejectedValue(error);
+  try {
+    await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "unavailable", retryAfter: 60 });
+    expect(mocks.execute.mock.calls[0].slice(1, 3)).toEqual(["overpass:unavailable", 60]);
+  } finally { log.mockRestore(); }
+});
+
+it("retries Overpass query timeouts returned inside HTTP 200 without accepting partial geometry", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.fetch.mockResolvedValue(Response.json({ remark: "runtime error: Query timed out after 20 seconds", elements: [] }));
+  try {
+    await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code: "unavailable", retryAfter: 60 });
+    expect(mocks.execute.mock.calls[0].slice(1, 3)).toEqual(["overpass:unavailable", 60]);
+  } finally { log.mockRestore(); }
 });
 
 it.each([
-  () => Promise.reject(new Error("network")),
-  () => Promise.resolve(Response.json({ remark: "runtime error: timeout", elements: [] })),
+  ["overpass:unavailable", "unavailable"],
+  ["overpass:rate-limit", "rate-limit"],
+])("reports shared provider cooldown %s as %s instead of active work", async (leaseId, code) => {
+  mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ leaseId, retryAfter: 42 }]);
+  await expect(fetchRunnableTiles(boundary)).rejects.toMatchObject({ code, retryAfter: 42 });
+  expect(mocks.fetch).not.toHaveBeenCalled();
+  expect(mocks.execute).not.toHaveBeenCalled();
+});
+
+it.each([
+  () => Promise.resolve(Response.json({ elements: "incomplete" })),
   () => Promise.resolve(new Response("not JSON")),
   () => Promise.resolve(new Response("x".repeat(32 * 1024 * 1024 + 1))),
 ])("fails explicitly and releases the lease on unusable responses", async (response) => {

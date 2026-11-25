@@ -9,7 +9,7 @@ export async function getCityProgress(userId: string) {
   // One snapshot keeps readiness and totals consistent; both claims and selections belong to this user.
   return db.$queryRaw<{ id: string; name: string; label: string; ready: boolean; total: number; explored: number }[]>`
     SELECT c."id", c."name", uc."label",
-      COALESCE(c."tilesReady" AND c."tileZoom" = ${TILE_ZOOM}, false) AS "ready",
+      COALESCE(c."tilesReady" AND c."tileZoom" = ${TILE_ZOOM} AND c."runnableTiles" IS NOT NULL, false) AS "ready",
       COUNT(ct."cityId")::int AS "total", COUNT(ut."id")::int AS "explored"
     FROM "UserCity" uc
     JOIN "City" c ON c."id" = uc."cityId"
@@ -25,24 +25,25 @@ export async function prepareCityTiles(userId: string, cityId: string) {
   // Check ownership before locking a shared city, and again within the transaction.
   const tracked = await db.userCity.findUnique({ where: { userId_cityId: { userId, cityId } }, select: { city: true } });
   if (!tracked) return null;
-  if (tracked.city.tilesReady && tracked.city.tileZoom === TILE_ZOOM) return { done: true };
+  const initialRunnable = cachedRunnableTiles(tracked.city.runnableTiles);
+  if (tracked.city.tilesReady && tracked.city.tileZoom === TILE_ZOOM && initialRunnable) return { done: true };
   const initialBoundary = parseBoundary(tracked.city.boundary);
   if (!initialBoundary) throw new Error("Stored city boundary is invalid");
-  const snapshot = cachedRunnableTiles(tracked.city.runnableTiles) === null ? await fetchRunnableTiles(initialBoundary) : null;
+  const snapshot = initialRunnable === null ? await fetchRunnableTiles(initialBoundary) : null;
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "City" WHERE "id" = ${cityId} FOR UPDATE`;
     const selection = await tx.userCity.findUnique({ where: { userId_cityId: { userId, cityId } }, select: { cityId: true } });
     if (!selection) return null;
     const city = await tx.city.findUniqueOrThrow({ where: { id: cityId } });
-    if (city.tilesReady && city.tileZoom === TILE_ZOOM) return { done: true };
+    const savedRunnable = cachedRunnableTiles(city.runnableTiles);
+    if (city.tilesReady && city.tileZoom === TILE_ZOOM && savedRunnable) return { done: true };
     // Network work happens outside the lock; a boundary edit makes that snapshot obsolete.
     if (city.boundaryFetchedAt.getTime() !== tracked.city.boundaryFetchedAt.getTime()) return { done: false };
     const boundary = parseBoundary(city.boundary);
     if (!boundary) throw new Error("Stored city boundary is invalid");
-    const savedRunnable = cachedRunnableTiles(city.runnableTiles);
     const runnable = savedRunnable ?? cachedRunnableTiles(snapshot);
     if (!runnable) throw new Error("City walkability is missing");
-    const rebuilding = city.tileZoom !== TILE_ZOOM;
+    const rebuilding = city.tileZoom !== TILE_ZOOM || !savedRunnable;
     if (rebuilding) await tx.cityTile.deleteMany({ where: { cityId } });
     if (!rebuilding && (city.tileNextX === null || city.tileNextY === null)) throw new Error("City tile cursor is invalid");
     const cursor = rebuilding ? null : { x: city.tileNextX!, y: city.tileNextY! };

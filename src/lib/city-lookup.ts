@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "./db";
 import { isCityCandidate, parseBoundary, parseCandidate, type CityCandidate } from "./city-lookup-data";
-import { OSM_USER_AGENT, osmResponseText } from "./osm-response";
+import { OSM_USER_AGENT, osmResponseText, osmRetrySeconds } from "./osm-response";
 
 const SEARCH_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -18,13 +18,6 @@ function providerUrl() {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new CityLookupError("upstream");
   if (!url.pathname.endsWith("/")) url.pathname += "/";
   return url;
-}
-
-function retrySeconds(response: Response) {
-  const value = response.headers.get("retry-after")?.trim();
-  if (!value) return 60;
-  const seconds = /^\d+$/.test(value) ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
-  return Number.isSafeInteger(seconds) && seconds > 0 ? Math.max(1, seconds) : 60;
 }
 
 function cacheKey(kind: "search" | "lookup", value: string) {
@@ -59,7 +52,7 @@ async function nominatim(path: "search" | "lookup", params: Record<string, strin
       signal: AbortSignal.timeout(8_000), redirect: "error", cache: "no-store",
     });
     if (response.status === 429) {
-      cooldown = retrySeconds(response);
+      cooldown = osmRetrySeconds(response);
       await response.body?.cancel();
       throw new CityLookupError("rate-limit");
     }

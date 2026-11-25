@@ -1,5 +1,12 @@
 export const OSM_USER_AGENT = "OwnPace/0.2 (https://github.com/DiegoRojo99/Own-Pace)";
 
+export function osmRetrySeconds(response: Pick<Response, "headers">, fallback = 60) {
+  const value = response.headers.get("retry-after")?.trim();
+  if (!value) return fallback;
+  const seconds = /^\d+$/.test(value) ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
+  return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : fallback;
+}
+
 export async function osmResponseText(response: Response, maxBytes: number) {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Missing OSM response body");

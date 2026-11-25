@@ -61,7 +61,23 @@ The server queries [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_A
 
 Only public city bounds are sent to Overpass, never activity routes or user identifiers. The derived walking-network mask is cached with the shared city, with a separate application-wide request lease. Timeouts, truncated/malformed responses, and provider limits stop preparation explicitly rather than falling back to unfiltered tiles. Set `CITY_OVERPASS_URL` to an HTTPS interpreter endpoint to use another compatible provider. Masks are refreshed when an admin saves the city boundary, not automatically. The runnable-tile migration discards old city catalogs so they rebuild on the next Explorer visit; private activity claims are unchanged. City progress is your claimed eligible city tiles divided by all eligible city tiles; it can increase while activities are still pending.
 
+Overpass queries request a 20-second execution limit and 128 MiB of server-side memory, rather than the usual 512 MiB default memory allowance. The HTTP deadline is separately set to 25 seconds, and downloaded responses are limited to 32 MiB; `[maxsize]` limits query memory, not response bytes. Smaller resource requests can improve admission but cannot guarantee availability on an overloaded server.
+
+To select a public mirror, set one of these full interpreter URLs in the server environment and restart/redeploy:
+
+```env
+CITY_OVERPASS_URL=https://overpass.private.coffee/api/interpreter
+```
+
+Alternatively, use `https://maps.mail.ru/osm/tools/overpass/api/interpreter`. These are the endpoints listed on the [OSM Overpass API wiki](https://wiki.openstreetmap.org/wiki/Overpass_API), not the providers' homepages. Without an override, the app uses `https://overpass-api.de/api/interpreter`; it does not automatically switch providers. Mirror availability and usage policies can change.
+
 Preparing a city runs in resumable batches while Explorer is open. Other users selecting the same city reuse its public tile catalog. A percentage appears only after preparation finishes; it resumes if you leave and return. Private activity claims remain in `UserTile` and match city tiles by `(zoom, x, y)`, filtered by the signed-in user. Removing a city does not delete your claims; deleting your account removes your private city selections and claims.
+
+When several cities need preparing, cards automatically wait for the application's shared Overpass request slot. Provider rate limits, timeouts, and temporary capacity errors trigger up to three automatic retries with increasing delays, respecting `Retry-After`; the cards show the wait rather than stopping immediately. Failed provider requests also impose a shared cooldown so other cities cannot immediately repeat them. Persistent failures expose **Try again**. Public Overpass servers are best-effort services: for reliable regular use, configure `CITY_OVERPASS_URL` with a suitable dedicated or self-hosted provider. Failed requests never produce an unfiltered catalog.
+
+The shared-slot message means another request is active and includes the next check time. If the provider is unavailable or rate-limits a request, all waiting cities show the provider error and retry delay instead; their retries are bounded, even when another city encountered the failure.
+
+After applying the runnable-tile migration, restart the development server or deploy the updated application, then reload Explorer and leave it open to rebuild. Catalogs without a cached walking-network mask are treated as pending even if an older application marked them ready. You do not need to remove and re-add cities; doing so only changes your private selections, not the shared catalog.
 
 ## Deploy on Vercel
 

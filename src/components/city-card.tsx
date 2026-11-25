@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { CITY_PREPARATION_STATUS, prepareCityUntilReady } from "@/lib/city-preparation"
 
 export type CityProgress = { id: string; name: string; label: string; ready: boolean; total: number; explored: number }
 const formatNumber = (value: number) => value.toLocaleString("en-US")
@@ -12,20 +13,14 @@ function PreparingCity({ cityId }: { cityId: string }) {
   const router = useRouter()
   const [attempt, setAttempt] = useState(0)
   const [error, setError] = useState("")
+  const [status, setStatus] = useState(CITY_PREPARATION_STATUS)
 
   useEffect(() => {
     const controller = new AbortController()
     async function prepare() {
       try {
-        while (!controller.signal.aborted) {
-          const response = await fetch(`/api/explorer/cities/prepare?cityId=${encodeURIComponent(cityId)}`, {
-            method: "POST", signal: controller.signal,
-          })
-          const data: { done?: boolean; error?: string } = await response.json()
-          if (!response.ok || typeof data.done !== "boolean") throw new Error(data.error ?? "Could not prepare this city.")
-          if (data.done) { if (!controller.signal.aborted) router.refresh(); return }
-          await new Promise((resolve) => setTimeout(resolve, 150))
-        }
+        await prepareCityUntilReady(cityId, controller.signal, setStatus)
+        if (!controller.signal.aborted) router.refresh()
       } catch (reason) {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not prepare this city.")
       }
@@ -35,8 +30,8 @@ function PreparingCity({ cityId }: { cityId: string }) {
   }, [attempt, cityId, router])
 
   return <div className="space-y-2">
-    <p role="status" className="text-sm text-muted-foreground">{error || "Mapping this city’s tiles… Keep this page open while it prepares."}</p>
-    {error && <Button size="sm" variant="outline" onClick={() => { setError(""); setAttempt((value) => value + 1) }}>Try again</Button>}
+    <p role="status" className="text-sm text-muted-foreground">{error || status}</p>
+    {error && <Button size="sm" variant="outline" onClick={() => { setError(""); setStatus(CITY_PREPARATION_STATUS); setAttempt((value) => value + 1) }}>Try again</Button>}
   </div>
 }
 
