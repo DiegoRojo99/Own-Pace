@@ -139,6 +139,7 @@ model City {
   osmId             BigInt
   boundary          Json
   boundaryFetchedAt DateTime       @default(now())
+  runnableTiles     Json?
   tileZoom          Int?
   tileNextX         Int?
   tileNextY         Int?

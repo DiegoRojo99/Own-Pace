@@ -3,12 +3,13 @@ import { POST } from "./route";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), prepare: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
-vi.mock("@/lib/city-progress", () => ({ prepareCityTiles: mocks.prepare }));
+vi.mock("@/lib/city-progress", () => ({
+  prepareCityTiles: mocks.prepare,
+}));
 
 function request(origin = "https://own.example") {
   return new Request("https://own.example/api/explorer/cities/prepare?cityId=city1", { method: "POST", headers: { origin } });
 }
-
 beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ user: { id: "owner" } }); });
 
 it("requires authentication and same-origin requests", async () => {
@@ -23,4 +24,13 @@ it("scopes preparation to the signed-in user and rejects untracked cities", asyn
   expect((await POST(request())).status).toBe(404);
   expect(await (await POST(request())).json()).toEqual({ done: true });
   expect(mocks.prepare).toHaveBeenCalledWith("owner", "city1");
+});
+
+it("reports preparation failures", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.prepare.mockRejectedValue(new Error("Invalid boundary"));
+  const response = await POST(request());
+  expect(response.status).toBe(500);
+  expect((await response.json()).error).toContain("Could not prepare");
+  vi.restoreAllMocks();
 });

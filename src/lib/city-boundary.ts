@@ -1,6 +1,7 @@
 import "server-only";
 import { parseBoundary, type CityBoundary } from "./city-lookup-data";
 import { db } from "./db";
+import { Prisma } from "@/generated/prisma/client";
 
 /** Accept a GeoJSON geometry or a Feature wrapping one. */
 export function parseBoundaryInput(value: unknown): CityBoundary | null {
@@ -18,7 +19,7 @@ export async function updateCityBoundary(cityId: string, boundary: CityBoundary)
     await tx.cityTile.deleteMany({ where: { cityId } });
     await tx.city.update({
       where: { id: cityId },
-      data: { boundary, boundaryFetchedAt: new Date(), tileZoom: null, tileNextX: null, tileNextY: null, tilesReady: false },
+      data: { boundary, boundaryFetchedAt: new Date(), runnableTiles: Prisma.DbNull, tileZoom: null, tileNextX: null, tileNextY: null, tilesReady: false },
     });
     return true;
   }, { timeout: 20_000 });

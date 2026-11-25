@@ -78,7 +78,7 @@ export default async function ExplorerPage() {
         <summary className="cursor-pointer rounded-sm text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary">+ Add a city</summary>
         <div className="mt-5"><CitySearch /></div>
       </details>
-      <p className="text-xs leading-relaxed text-muted-foreground">City totals include tile centers inside the OpenStreetMap administrative boundary, including water or inaccessible land. Boundaries may change or be incomplete.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">City totals use the administrative boundary, filtered by OpenStreetMap walking paths when a catalog is available. Unfiltered tiles may be inaccessible. Map data may be incomplete or out of date; always follow local access signs.</p>
     </section>
 
     <section aria-labelledby="activity-heading" className="space-y-4">

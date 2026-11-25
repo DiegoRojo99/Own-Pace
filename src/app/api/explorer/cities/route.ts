@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         create: { userId: session.user.id, cityId: city.id, label: body.label.trim() },
         update: { label: body.label.trim() },
       });
-      return Response.json({ city }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json({ city: { id: city.id, name: city.name } }, { headers: { "Cache-Control": "private, no-store" } });
     }
     if ("action" in body && body.action === "remove" && "cityId" in body && typeof body.cityId === "string" && /^[a-z0-9]{1,64}$/.test(body.cityId)) {
       // Only remove this signed-in user's city selection.

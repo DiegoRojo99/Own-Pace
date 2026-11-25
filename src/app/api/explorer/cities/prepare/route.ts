@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prepareCityTiles } from "@/lib/city-progress";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const session = await auth();

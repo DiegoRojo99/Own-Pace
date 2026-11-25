@@ -32,7 +32,7 @@ export function CitySearch() {
       const data = await request({ action: "search", query })
       if (!data.results) throw new Error("City lookup returned an invalid response.")
       setResults(data.results)
-      setMessage(data.results.length ? "Choose an administrative boundary:" : "No administrative boundaries found. Try a city and country.")
+      setMessage(data.results.length ? "Choose an administrative boundary:" : "No administrative boundaries found. Try another city and country.")
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "City lookup failed.")
     } finally { setBusy(false) }
@@ -45,7 +45,7 @@ export function CitySearch() {
       const data = await request({ action: "select", osmType: city.osmType, osmId: city.osmId, label: city.label })
       if (!data.city) throw new Error("City lookup returned an invalid response.")
       setResults([])
-      setMessage(`${data.city.name} added to your cities. Preparing its tiles…`)
+      setMessage(`${data.city.name} added to your cities. Check its card for tile status.`)
       router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load the boundary.")
@@ -53,7 +53,7 @@ export function CitySearch() {
   }
 
   return <div className="space-y-4">
-    <p className="text-sm text-muted-foreground">Search for a city and country, then choose its administrative boundary. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
+    <p className="text-sm text-muted-foreground">Search for a city and country, then choose its administrative boundary. Tiles are prepared automatically; an offline catalog can filter them for walkability later. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
     <form onSubmit={search} className="flex flex-wrap items-end gap-2">
       <label className="grid flex-1 gap-1 text-sm font-medium" htmlFor="city-search">
         City and country

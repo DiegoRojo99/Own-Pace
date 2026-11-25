@@ -4,28 +4,23 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { CITY_PREPARATION_STATUS, prepareCityUntilReady } from "@/lib/city-preparation"
 
-export type CityProgress = { id: string; name: string; label: string; ready: boolean; total: number; explored: number }
+export type CityProgress = { id: string; name: string; label: string; ready: boolean; filtered: boolean; total: number; explored: number }
 const formatNumber = (value: number) => value.toLocaleString("en-US")
 
 function PreparingCity({ cityId }: { cityId: string }) {
   const router = useRouter()
   const [attempt, setAttempt] = useState(0)
   const [error, setError] = useState("")
+  const [status, setStatus] = useState(CITY_PREPARATION_STATUS)
 
   useEffect(() => {
     const controller = new AbortController()
     async function prepare() {
       try {
-        while (!controller.signal.aborted) {
-          const response = await fetch(`/api/explorer/cities/prepare?cityId=${encodeURIComponent(cityId)}`, {
-            method: "POST", signal: controller.signal,
-          })
-          const data: { done?: boolean; error?: string } = await response.json()
-          if (!response.ok || typeof data.done !== "boolean") throw new Error(data.error ?? "Could not prepare this city.")
-          if (data.done) { if (!controller.signal.aborted) router.refresh(); return }
-          await new Promise((resolve) => setTimeout(resolve, 150))
-        }
+        await prepareCityUntilReady(cityId, controller.signal, setStatus)
+        if (!controller.signal.aborted) router.refresh()
       } catch (reason) {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not prepare this city.")
       }
@@ -35,8 +30,8 @@ function PreparingCity({ cityId }: { cityId: string }) {
   }, [attempt, cityId, router])
 
   return <div className="space-y-2">
-    <p role="status" className="text-sm text-muted-foreground">{error || "Mapping this city’s tiles… Keep this page open while it prepares."}</p>
-    {error && <Button size="sm" variant="outline" onClick={() => { setError(""); setAttempt((value) => value + 1) }}>Try again</Button>}
+    <p role="status" className="text-sm text-muted-foreground">{error || status}</p>
+    {error && <Button size="sm" variant="outline" onClick={() => { setError(""); setStatus(CITY_PREPARATION_STATUS); setAttempt((value) => value + 1) }}>Try again</Button>}
   </div>
 }
 
@@ -78,7 +73,7 @@ export function CityCard({ city }: { city: CityProgress }) {
     </div>
     <div className="px-5 pb-5 pt-5 sm:px-6 sm:pb-6">
       {!city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
-        <p className="text-sm text-muted-foreground">No tile centers fall inside this boundary at the current zoom.</p>
+        <p className="text-sm text-muted-foreground">{city.filtered ? "No mapped publicly accessible paths were found in this city’s tiles." : "No tile centers were found inside this city’s boundary."}</p>
       ) : <div className="flex items-center gap-5">
         <div className="relative grid size-24 shrink-0 place-items-center" role="img" aria-label={`${percentage}% explored`}>
           <svg aria-hidden="true" viewBox="0 0 90 90" className="absolute inset-0 size-full -rotate-90">
@@ -95,6 +90,7 @@ export function CityCard({ city }: { city: CityProgress }) {
           <p className="mt-2 text-xs text-muted-foreground">{formatNumber(city.total - city.explored)} left to explore</p>
         </div>
       </div>}
+      {!city.filtered && <p className="mt-3 text-xs text-muted-foreground">Boundary-based tiles are not filtered for walkability and may include inaccessible areas. An administrator can run <code>npm run build:city-tiles</code> and restart or redeploy to filter them.</p>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       {city.ready && city.total > 0 && <Button asChild size="sm" variant="ghost" className="mt-4 -ml-3 text-primary"><Link href={`/explorer/${city.id}`}>View city map <span aria-hidden="true">→</span></Link></Button>}
     </div>
