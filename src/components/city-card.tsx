@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { CITY_PREPARATION_STATUS, prepareCityUntilReady } from "@/lib/city-preparation"
 
-export type CityProgress = { id: string; name: string; label: string; ready: boolean; total: number; explored: number }
+export type CityProgress = { id: string; name: string; label: string; ready: boolean; available: boolean; total: number; explored: number }
 const formatNumber = (value: number) => value.toLocaleString("en-US")
 
 function PreparingCity({ cityId }: { cityId: string }) {
@@ -72,7 +72,7 @@ export function CityCard({ city }: { city: CityProgress }) {
       <button type="button" disabled={removing} onClick={remove} className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50" aria-label={`Remove ${city.name} from your cities`}>Remove</button>
     </div>
     <div className="px-5 pb-5 pt-5 sm:px-6 sm:pb-6">
-      {!city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
+      {!city.available ? <p role="status" className="text-sm text-muted-foreground">This city needs a new precomputed tile catalog.</p> : !city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
         <p className="text-sm text-muted-foreground">No mapped publicly accessible paths were found in this city’s tiles.</p>
       ) : <div className="flex items-center gap-5">
         <div className="relative grid size-24 shrink-0 place-items-center" role="img" aria-label={`${percentage}% explored`}>
@@ -91,7 +91,7 @@ export function CityCard({ city }: { city: CityProgress }) {
         </div>
       </div>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
-      {city.ready && city.total > 0 && <Button asChild size="sm" variant="ghost" className="mt-4 -ml-3 text-primary"><Link href={`/explorer/${city.id}`}>View city map <span aria-hidden="true">→</span></Link></Button>}
+      {city.available && city.ready && city.total > 0 && <Button asChild size="sm" variant="ghost" className="mt-4 -ml-3 text-primary"><Link href={`/explorer/${city.id}`}>View city map <span aria-hidden="true">→</span></Link></Button>}
     </div>
   </article>
 }

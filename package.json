@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:city-tiles": "tsx scripts/build-city-tiles.ts",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
@@ -45,6 +46,7 @@
     "postcss": "8.5.33",
     "prisma": "7.10.1",
     "tailwindcss": "4.3.5",
+    "tsx": "^4.20.6",
     "typescript": "6.0.3",
     "vitest": "5.1.1"
   }

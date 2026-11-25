@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
-import { CityLookupError, searchCities, selectCity } from "@/lib/city-lookup";
+import { CityLookupError, searchCities } from "@/lib/city-lookup";
+import { isCityCandidate } from "@/lib/city-lookup-data";
+import { precomputedCity } from "@/lib/city-catalog";
 import { db } from "@/lib/db";
 
 export const maxDuration = 20;
@@ -30,19 +32,36 @@ export async function POST(request: Request) {
     const body = await readBody(request);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new CityLookupError("invalid");
     if ("action" in body && body.action === "search" && "query" in body && typeof body.query === "string") {
-      return Response.json({ results: await searchCities(body.query) }, { headers: { "Cache-Control": "private, no-store" } });
+      const results = await searchCities(body.query);
+      const cities = results.length ? await db.city.findMany({
+        where: { OR: results.map(({ osmType, osmId }) => ({ osmType, osmId: BigInt(osmId) })) },
+        select: { osmType: true, osmId: true, boundary: true },
+      }) : [];
+      const available = new Set(cities.filter((city) => precomputedCity(city.osmType, city.osmId, city.boundary))
+        .map((city) => `${city.osmType}/${city.osmId}`));
+      return Response.json({ results: results.filter((city) => available.has(`${city.osmType}/${city.osmId}`)) }, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
     }
     if ("action" in body && body.action === "select" && "osmType" in body &&
         (body.osmType === "WAY" || body.osmType === "RELATION") && "osmId" in body && typeof body.osmId === "string" &&
         "label" in body && typeof body.label === "string" && body.label.trim().length > 0 && body.label.length <= 500 && !/[\u0000-\u001f\u007f]/.test(body.label)) {
-      const city = await selectCity(body.osmType, body.osmId);
+      if (!isCityCandidate({ osmType: body.osmType, osmId: body.osmId, name: "x", label: "x" })) throw new CityLookupError("invalid");
+      const city = await db.city.findUnique({
+        where: { osmType_osmId: { osmType: body.osmType, osmId: BigInt(body.osmId) } },
+      });
+      if (!city || !precomputedCity(city.osmType, city.osmId, city.boundary)) {
+        return Response.json({ error: "This city is not available in the precomputed catalog." }, {
+          status: 422, headers: { "Cache-Control": "private, no-store" },
+        });
+      }
       // Only add this city to the signed-in user's list.
       await db.userCity.upsert({
         where: { userId_cityId: { userId: session.user.id, cityId: city.id } },
         create: { userId: session.user.id, cityId: city.id, label: body.label.trim() },
         update: { label: body.label.trim() },
       });
-      return Response.json({ city }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json({ city: { id: city.id, name: city.name } }, { headers: { "Cache-Control": "private, no-store" } });
     }
     if ("action" in body && body.action === "remove" && "cityId" in body && typeof body.cityId === "string" && /^[a-z0-9]{1,64}$/.test(body.cityId)) {
       // Only remove this signed-in user's city selection.

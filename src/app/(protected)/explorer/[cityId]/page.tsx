@@ -4,6 +4,7 @@ import { CityMap } from "@/components/city-map"
 import { db } from "@/lib/db"
 import { requireUser } from "@/lib/session"
 import { TILE_ZOOM } from "@/lib/tiles"
+import { precomputedCity, savedCatalogMatches } from "@/lib/city-catalog"
 
 export default async function CityPage({ params }: { params: Promise<{ cityId: string }> }) {
   const { id } = await requireUser()
@@ -11,10 +12,14 @@ export default async function CityPage({ params }: { params: Promise<{ cityId: s
   // Only cities the signed-in user has added are visible.
   const userCity = await db.userCity.findFirst({
     where: { userId: id, cityId },
-    select: { label: true, city: { select: { name: true, tilesReady: true, tileZoom: true, runnableTiles: true } } },
+    select: { label: true, city: { select: {
+      name: true, tilesReady: true, tileZoom: true, runnableTiles: true, osmType: true, osmId: true, boundary: true,
+    } } },
   })
   if (!userCity) notFound()
-  if (!userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM || userCity.city.runnableTiles === null) redirect("/explorer")
+  const catalog = precomputedCity(userCity.city.osmType, userCity.city.osmId, userCity.city.boundary)
+  if (!catalog || !userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM ||
+      !savedCatalogMatches(userCity.city.runnableTiles, catalog.fingerprint)) redirect("/explorer")
 
   const [cityTiles, userTiles] = await Promise.all([
     db.cityTile.findMany({ where: { cityId, zoom: TILE_ZOOM }, select: { x: true, y: true } }),

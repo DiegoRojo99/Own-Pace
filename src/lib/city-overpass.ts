@@ -2,7 +2,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { db } from "./db";
 import type { CityBoundary } from "./city-lookup-data";
-import { runnableTileKeys, RUNNABLE_HIGHWAYS, walkabilityBounds } from "./city-walkability";
+import { runnableTileKeys } from "./city-walkability";
+import { overpassQuery } from "./overpass-query";
+export { overpassQuery } from "./overpass-query";
 import { OSM_USER_AGENT, osmResponseText, osmRetrySeconds } from "./osm-response";
 import { TILE_ZOOM } from "./tiles";
 
@@ -13,26 +15,6 @@ export class CityWalkabilityError extends Error {
   constructor(public code: "busy" | "rate-limit" | "unavailable" | "upstream", public retryAfter = 60) {
     super(`OSM walkability ${code}`);
   }
-}
-
-export function overpassQuery(boundary: CityBoundary) {
-  const filters = [
-    '["landuse"="military"]', '["military"]',
-    '["access"~"^(private|no|military)$"]', '["foot"~"^(private|no|military)$"]',
-    '["natural"="water"]', '["waterway"~"^(river|riverbank)$"]',
-  ];
-  const selectors = [
-    `way["highway"~"^(${RUNNABLE_HIGHWAYS.join("|")})$"]`,
-    ...filters.flatMap((filter) => [`way${filter}`, `rel${filter}`]),
-  ];
-  const boxes = walkabilityBounds(boundary);
-  const queries = boxes.flatMap((box) => selectors.map((selector) => `${selector}(${box.join(",")});`));
-  // is_in also finds a large restricted polygon completely surrounding the city's bounds.
-  const enclosing = boxes.map(([south, west, north, east], index) =>
-    `is_in(${(south + north) / 2},${(west + east) / 2})->.enclosing${index};
-    (${filters.flatMap((filter) => [`area.enclosing${index}${filter};`, `way.enclosing${index}${filter};`]).join("")})->.areas${index};`);
-  const pivots = enclosing.map((_, index) => `way.areas${index};way(pivot.areas${index});rel(pivot.areas${index});`).join("");
-  return `[out:json][timeout:20][maxsize:134217728];${enclosing.join("\n")}(${queries.join("")}${pivots});out geom;`;
 }
 
 /** Fetch only public OSM data, never activity routes or user identifiers. */

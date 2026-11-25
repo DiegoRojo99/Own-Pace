@@ -32,7 +32,7 @@ export function CitySearch() {
       const data = await request({ action: "search", query })
       if (!data.results) throw new Error("City lookup returned an invalid response.")
       setResults(data.results)
-      setMessage(data.results.length ? "Choose an administrative boundary:" : "No administrative boundaries found. Try a city and country.")
+      setMessage(data.results.length ? "Choose a precomputed city:" : "No precomputed cities found. Try another city and country.")
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "City lookup failed.")
     } finally { setBusy(false) }
@@ -53,7 +53,7 @@ export function CitySearch() {
   }
 
   return <div className="space-y-4">
-    <p className="text-sm text-muted-foreground">Search for a city and country, then choose its administrative boundary. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
+    <p className="text-sm text-muted-foreground">Search for a city and country; only cities with precomputed tiles can be added. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
     <form onSubmit={search} className="flex flex-wrap items-end gap-2">
       <label className="grid flex-1 gap-1 text-sm font-medium" htmlFor="city-search">
         City and country
