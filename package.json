@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:city-tiles": "tsx scripts/build-city-tiles.ts",
+    "build:city-tiles:all": "tsx scripts/build-city-tiles.ts --all",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",

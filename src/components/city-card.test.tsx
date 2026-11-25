@@ -28,7 +28,8 @@ it("does not round an incomplete city up to 100%", () => {
 
 it("shows missing catalogs without starting preparation or displaying a map link", () => {
   const html = renderToStaticMarkup(<CityCard city={{ ...city, ready: false, available: false }} />)
-  expect(html).toContain("needs a new precomputed tile catalog")
+  expect(html).toContain("Waiting for an offline tile catalog")
+  expect(html).toContain("npm run build:city-tiles")
   expect(html).not.toContain("Mapping this city")
   expect(html).not.toContain("View city map")
 })

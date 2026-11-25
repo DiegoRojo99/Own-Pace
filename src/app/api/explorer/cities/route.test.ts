@@ -2,16 +2,12 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { POST } from "./route";
 import { CityLookupError } from "@/lib/city-lookup";
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), search: vi.fn(), findMany: vi.fn(), findCity: vi.fn(), catalog: vi.fn(), upsert: vi.fn(), remove: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), search: vi.fn(), select: vi.fn(), upsert: vi.fn(), remove: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
-vi.mock("@/lib/db", () => ({ db: {
-  userCity: { upsert: mocks.upsert, deleteMany: mocks.remove },
-  city: { findMany: mocks.findMany, findUnique: mocks.findCity },
-} }));
-vi.mock("@/lib/city-catalog", () => ({ precomputedCity: mocks.catalog }));
+vi.mock("@/lib/db", () => ({ db: { userCity: { upsert: mocks.upsert, deleteMany: mocks.remove } } }));
 vi.mock("@/lib/city-lookup", () => ({
   CityLookupError: class CityLookupError extends Error { constructor(public code: string) { super(code); } },
-  searchCities: mocks.search,
+  searchCities: mocks.search, selectCity: mocks.select,
 }));
 
 function request(body: unknown, origin = "https://own.example") {
@@ -23,7 +19,6 @@ function request(body: unknown, origin = "https://own.example") {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue({ user: { id: "owner" } });
-  mocks.catalog.mockReturnValue({ fingerprint: "catalog" });
 });
 
 it("requires authentication and same-origin requests", async () => {
@@ -35,13 +30,12 @@ it("requires authentication and same-origin requests", async () => {
 
 it("searches and selects only on explicit authenticated requests", async () => {
   mocks.search.mockResolvedValue([{ osmType: "RELATION", osmId: "42", name: "Madrid", label: "Madrid, Spain" }]);
-  mocks.findMany.mockResolvedValue([{ osmType: "RELATION", osmId: 42n, boundary: {} }]);
   const search = await POST(request({ action: "search", query: "Madrid" }));
   expect(await search.json()).toEqual({ results: [{ osmType: "RELATION", osmId: "42", name: "Madrid", label: "Madrid, Spain" }] });
   expect(search.headers.get("cache-control")).toBe("private, no-store");
-  mocks.findCity.mockResolvedValue({ id: "city1", name: "Madrid", osmType: "RELATION", osmId: 42n, boundary: {} });
+  mocks.select.mockResolvedValue({ id: "city1", name: "Madrid" });
   expect((await POST(request({ action: "select", osmType: "RELATION", osmId: "42", label: "Madrid, Spain" }))).status).toBe(200);
-  expect(mocks.findCity).toHaveBeenCalledWith({ where: { osmType_osmId: { osmType: "RELATION", osmId: 42n } } });
+  expect(mocks.select).toHaveBeenCalledWith("RELATION", "42");
   expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
     where: { userId_cityId: { userId: "owner", cityId: "city1" } },
     create: { userId: "owner", cityId: "city1", label: "Madrid, Spain" },
@@ -51,13 +45,22 @@ it("searches and selects only on explicit authenticated requests", async () => {
   expect((await POST(request({ action: "select", osmType: "NODE", osmId: "42" }))).status).toBe(400);
 });
 
-it("filters unavailable search results and refuses direct selection of a stale catalog", async () => {
-  mocks.search.mockResolvedValue([{ osmType: "RELATION", osmId: "42", name: "Madrid", label: "Madrid" }]);
-  mocks.findMany.mockResolvedValue([{ osmType: "RELATION", osmId: 42n, boundary: {} }]);
-  mocks.findCity.mockResolvedValue({ id: "city1", name: "Madrid", osmType: "RELATION", osmId: 42n, boundary: {} });
-  mocks.catalog.mockReturnValue(null);
-  expect(await (await POST(request({ action: "search", query: "Madrid" }))).json()).toEqual({ results: [] });
-  const response = await POST(request({ action: "select", osmType: "RELATION", osmId: "42", label: "Madrid" }));
+it("offers and saves cities even when they have no precomputed catalog", async () => {
+  const place = { osmType: "WAY", osmId: "123", name: "New Town", label: "New Town, Country" };
+  mocks.search.mockResolvedValue([place]);
+  expect(await (await POST(request({ action: "search", query: "New Town" }))).json()).toEqual({ results: [place] });
+  mocks.select.mockResolvedValue({ id: "newcity", name: "New Town" });
+  const response = await POST(request({ action: "select", osmType: "WAY", osmId: "123", label: place.label }));
+  expect(response.status).toBe(200);
+  expect(mocks.select).toHaveBeenCalledWith("WAY", "123");
+  expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+    create: { userId: "owner", cityId: "newcity", label: place.label },
+  }));
+});
+
+it("does not save a city if Nominatim cannot provide its administrative boundary", async () => {
+  mocks.select.mockRejectedValue(new CityLookupError("no-boundary"));
+  const response = await POST(request({ action: "select", osmType: "RELATION", osmId: "42", label: "City" }));
   expect(response.status).toBe(422);
   expect(mocks.upsert).not.toHaveBeenCalled();
 });

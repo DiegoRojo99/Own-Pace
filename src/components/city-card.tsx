@@ -72,7 +72,7 @@ export function CityCard({ city }: { city: CityProgress }) {
       <button type="button" disabled={removing} onClick={remove} className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50" aria-label={`Remove ${city.name} from your cities`}>Remove</button>
     </div>
     <div className="px-5 pb-5 pt-5 sm:px-6 sm:pb-6">
-      {!city.available ? <p role="status" className="text-sm text-muted-foreground">This city needs a new precomputed tile catalog.</p> : !city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
+      {!city.available ? <p role="status" className="text-sm text-muted-foreground">Waiting for an offline tile catalog. An administrator must run <code>npm run build:city-tiles</code> and restart or redeploy the app.</p> : !city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
         <p className="text-sm text-muted-foreground">No mapped publicly accessible paths were found in this city’s tiles.</p>
       ) : <div className="flex items-center gap-5">
         <div className="relative grid size-24 shrink-0 place-items-center" role="img" aria-label={`${percentage}% explored`}>
