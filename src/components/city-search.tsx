@@ -53,7 +53,7 @@ export function CitySearch() {
   }
 
   return <div className="space-y-4">
-    <p className="text-sm text-muted-foreground">Search for a city and country, then choose its administrative boundary. New cities need an offline tile catalog build before their map is available. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
+    <p className="text-sm text-muted-foreground">Search for a city and country, then choose its administrative boundary. Tiles are prepared automatically; an offline catalog can filter them for walkability later. The search is sent to OpenStreetMap; don&apos;t enter personal information. Your activity routes are not sent.</p>
     <form onSubmit={search} className="flex flex-wrap items-end gap-2">
       <label className="grid flex-1 gap-1 text-sm font-medium" htmlFor="city-search">
         City and country

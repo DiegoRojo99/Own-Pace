@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { CityCatalogUnavailableError, prepareCityTiles } from "@/lib/city-progress";
+import { prepareCityTiles } from "@/lib/city-progress";
 
 export const maxDuration = 60;
 
@@ -14,11 +14,6 @@ export async function POST(request: Request) {
     if (!result) return Response.json({ error: "City not found" }, { status: 404 });
     return Response.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    if (error instanceof CityCatalogUnavailableError) {
-      return Response.json({ error: "This city needs a new precomputed tile catalog." }, {
-        status: 409, headers: { "Cache-Control": "private, no-store" },
-      });
-    }
     console.error("Could not prepare city tiles:", error instanceof Error ? error.message : "UnknownError");
     return Response.json({ error: "Could not prepare this city. Please try again." }, { status: 500 });
   }

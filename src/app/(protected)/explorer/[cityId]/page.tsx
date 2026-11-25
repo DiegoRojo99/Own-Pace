@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { requireUser } from "@/lib/session"
 import { TILE_ZOOM } from "@/lib/tiles"
 import { precomputedCity, savedCatalogMatches } from "@/lib/city-catalog"
+import { cityTileSource } from "@/lib/city-catalog-data"
 
 export default async function CityPage({ params }: { params: Promise<{ cityId: string }> }) {
   const { id } = await requireUser()
@@ -18,8 +19,9 @@ export default async function CityPage({ params }: { params: Promise<{ cityId: s
   })
   if (!userCity) notFound()
   const catalog = precomputedCity(userCity.city.osmType, userCity.city.osmId, userCity.city.boundary)
-  if (!catalog || !userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM ||
-      !savedCatalogMatches(userCity.city.runnableTiles, catalog.fingerprint)) redirect("/explorer")
+  const source = cityTileSource(userCity.city.boundary, catalog)
+  if (!userCity.city.tilesReady || userCity.city.tileZoom !== TILE_ZOOM ||
+      !savedCatalogMatches(userCity.city.runnableTiles, source.fingerprint)) redirect("/explorer")
 
   const [cityTiles, userTiles] = await Promise.all([
     db.cityTile.findMany({ where: { cityId, zoom: TILE_ZOOM }, select: { x: true, y: true } }),
@@ -41,6 +43,7 @@ export default async function CityPage({ params }: { params: Promise<{ cityId: s
       <h1 className="mt-2 text-3xl font-bold tracking-tight wrap-anywhere sm:text-4xl">{userCity.city.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{userCity.label}</p>
       <p className="mt-3 text-sm font-semibold">{done.length.toLocaleString("en-US")} <span className="font-normal text-muted-foreground">of {total.toLocaleString("en-US")} tiles · {percentage}% explored</span></p>
+      {!catalog && <p className="mt-2 text-sm text-muted-foreground">These boundary-based tiles are not filtered for walkability and may include inaccessible areas.</p>}
     </div>
     <CityMap explored={done} unexplored={fog} zoom={TILE_ZOOM} />
   </div>

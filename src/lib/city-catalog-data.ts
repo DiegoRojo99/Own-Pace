@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CityBoundary } from "./city-lookup-data";
+import { parseBoundary, type CityBoundary } from "./city-lookup-data";
 import { TILE_ZOOM } from "./tiles";
 
 export type CatalogCity = {
@@ -17,6 +17,16 @@ function hash(value: unknown) {
 
 export function boundaryHash(boundary: CityBoundary) {
   return hash([boundary.type, boundary.coordinates]);
+}
+
+export function cityTileSource(value: unknown, catalog: CatalogCity | null) {
+  const boundary = parseBoundary(value);
+  if (!boundary) throw new Error("Stored city boundary is invalid");
+  return {
+    boundary,
+    catalog,
+    fingerprint: catalog?.fingerprint ?? `boundary:${TILE_ZOOM}:${boundaryHash(boundary)}`,
+  };
 }
 
 export function makeCatalogCity(osmType: CatalogCity["osmType"], osmId: string, boundary: CityBoundary, keys: string[]): CatalogCity {

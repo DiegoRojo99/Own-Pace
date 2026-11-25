@@ -1,12 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { POST } from "./route";
-import { CityCatalogUnavailableError } from "@/lib/city-progress";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), prepare: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/city-progress", () => ({
   prepareCityTiles: mocks.prepare,
-  CityCatalogUnavailableError: class CityCatalogUnavailableError extends Error {},
 }));
 
 function request(origin = "https://own.example") {
@@ -28,9 +26,11 @@ it("scopes preparation to the signed-in user and rejects untracked cities", asyn
   expect(mocks.prepare).toHaveBeenCalledWith("owner", "city1");
 });
 
-it("reports missing or stale precomputed catalogs instead of contacting Overpass", async () => {
-  mocks.prepare.mockRejectedValue(new CityCatalogUnavailableError());
+it("reports preparation failures", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.prepare.mockRejectedValue(new Error("Invalid boundary"));
   const response = await POST(request());
-  expect(response.status).toBe(409);
-  expect((await response.json()).error).toContain("precomputed");
+  expect(response.status).toBe(500);
+  expect((await response.json()).error).toContain("Could not prepare");
+  vi.restoreAllMocks();
 });
