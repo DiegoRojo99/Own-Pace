@@ -2,10 +2,10 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "./db";
 import { isCityCandidate, parseBoundary, parseCandidate, type CityCandidate } from "./city-lookup-data";
+import { OSM_USER_AGENT, osmResponseText } from "./osm-response";
 
 const SEARCH_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const USER_AGENT = "OwnPace/0.2 (https://github.com/DiegoRojo99/Own-Pace)";
 
 export class CityLookupError extends Error {
   constructor(public code: "invalid" | "rate-limit" | "upstream" | "no-boundary") {
@@ -18,27 +18,6 @@ function providerUrl() {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new CityLookupError("upstream");
   if (!url.pathname.endsWith("/")) url.pathname += "/";
   return url;
-}
-
-async function responseText(response: Response) {
-  const reader = response.body?.getReader();
-  if (!reader) throw new CityLookupError("upstream");
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    length += value.length;
-    if (length > MAX_RESPONSE_BYTES) {
-      await reader.cancel();
-      throw new CityLookupError("upstream");
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  return new TextDecoder().decode(bytes);
 }
 
 function retrySeconds(response: Response) {
@@ -76,7 +55,7 @@ async function nominatim(path: "search" | "lookup", params: Record<string, strin
   let cooldown = 1;
   try {
     const response = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT, "Accept": "application/json", "Accept-Language": "en" },
+      headers: { "User-Agent": OSM_USER_AGENT, "Accept": "application/json", "Accept-Language": "en" },
       signal: AbortSignal.timeout(8_000), redirect: "error", cache: "no-store",
     });
     if (response.status === 429) {
@@ -85,7 +64,7 @@ async function nominatim(path: "search" | "lookup", params: Record<string, strin
       throw new CityLookupError("rate-limit");
     }
     if (!response.ok) throw new CityLookupError("upstream");
-    const text = await responseText(response);
+    const text = await osmResponseText(response, MAX_RESPONSE_BYTES);
     try { return JSON.parse(text); } catch { throw new CityLookupError("upstream"); }
   } catch (error) {
     if (error instanceof CityLookupError) throw error;

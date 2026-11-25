@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
 import { prepareCityTiles } from "@/lib/city-progress";
+import { CityWalkabilityError } from "@/lib/city-overpass";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -14,6 +15,13 @@ export async function POST(request: Request) {
     if (!result) return Response.json({ error: "City not found" }, { status: 404 });
     return Response.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    if (error instanceof CityWalkabilityError) {
+      return Response.json({
+        error: error.code === "rate-limit"
+          ? "OpenStreetMap's walking network service is busy. Please try again in a minute."
+          : "Could not load OpenStreetMap walking paths. No unfiltered tiles were saved. Please try again.",
+      }, { status: error.code === "rate-limit" ? 429 : 502 });
+    }
     console.error("Could not prepare city tiles:", error instanceof Error ? error.message : "UnknownError");
     return Response.json({ error: "Could not prepare this city. Please try again." }, { status: 500 });
   }

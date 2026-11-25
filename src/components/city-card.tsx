@@ -78,7 +78,7 @@ export function CityCard({ city }: { city: CityProgress }) {
     </div>
     <div className="px-5 pb-5 pt-5 sm:px-6 sm:pb-6">
       {!city.ready ? <PreparingCity cityId={city.id} /> : city.total === 0 ? (
-        <p className="text-sm text-muted-foreground">No tile centers fall inside this boundary at the current zoom.</p>
+        <p className="text-sm text-muted-foreground">No mapped publicly accessible paths were found in this city’s tiles.</p>
       ) : <div className="flex items-center gap-5">
         <div className="relative grid size-24 shrink-0 place-items-center" role="img" aria-label={`${percentage}% explored`}>
           <svg aria-hidden="true" viewBox="0 0 90 90" className="absolute inset-0 size-full -rotate-90">

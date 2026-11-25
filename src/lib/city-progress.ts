@@ -3,6 +3,7 @@ import { db } from "./db";
 import { parseBoundary } from "./city-lookup-data";
 import { cityTileBatch } from "./city-tiles";
 import { TILE_ZOOM } from "./tiles";
+import { cachedRunnableTiles, fetchRunnableTiles } from "./city-overpass";
 
 export async function getCityProgress(userId: string) {
   // One snapshot keeps readiness and totals consistent; both claims and selections belong to this user.
@@ -22,29 +23,42 @@ export async function getCityProgress(userId: string) {
 
 export async function prepareCityTiles(userId: string, cityId: string) {
   // Check ownership before locking a shared city, and again within the transaction.
-  const tracked = await db.userCity.findUnique({ where: { userId_cityId: { userId, cityId } }, select: { cityId: true } });
+  const tracked = await db.userCity.findUnique({ where: { userId_cityId: { userId, cityId } }, select: { city: true } });
   if (!tracked) return null;
+  if (tracked.city.tilesReady && tracked.city.tileZoom === TILE_ZOOM) return { done: true };
+  const initialBoundary = parseBoundary(tracked.city.boundary);
+  if (!initialBoundary) throw new Error("Stored city boundary is invalid");
+  const snapshot = cachedRunnableTiles(tracked.city.runnableTiles) === null ? await fetchRunnableTiles(initialBoundary) : null;
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "City" WHERE "id" = ${cityId} FOR UPDATE`;
     const selection = await tx.userCity.findUnique({ where: { userId_cityId: { userId, cityId } }, select: { cityId: true } });
     if (!selection) return null;
     const city = await tx.city.findUniqueOrThrow({ where: { id: cityId } });
     if (city.tilesReady && city.tileZoom === TILE_ZOOM) return { done: true };
+    // Network work happens outside the lock; a boundary edit makes that snapshot obsolete.
+    if (city.boundaryFetchedAt.getTime() !== tracked.city.boundaryFetchedAt.getTime()) return { done: false };
     const boundary = parseBoundary(city.boundary);
     if (!boundary) throw new Error("Stored city boundary is invalid");
+    const savedRunnable = cachedRunnableTiles(city.runnableTiles);
+    const runnable = savedRunnable ?? cachedRunnableTiles(snapshot);
+    if (!runnable) throw new Error("City walkability is missing");
     const rebuilding = city.tileZoom !== TILE_ZOOM;
     if (rebuilding) await tx.cityTile.deleteMany({ where: { cityId } });
     if (!rebuilding && (city.tileNextX === null || city.tileNextY === null)) throw new Error("City tile cursor is invalid");
     const cursor = rebuilding ? null : { x: city.tileNextX!, y: city.tileNextY! };
     const batch = cityTileBatch(boundary, TILE_ZOOM, cursor);
     for (let offset = 0; offset < batch.tiles.length; offset += 500) {
-      const tiles = batch.tiles.slice(offset, offset + 500);
+      const tiles = batch.tiles.slice(offset, offset + 500).filter(({ x, y }) => runnable.has(`${x}/${y}`));
+      if (!tiles.length) continue;
       await tx.tile.createMany({ data: tiles, skipDuplicates: true });
       await tx.cityTile.createMany({ data: tiles.map((tile) => ({ cityId, ...tile })), skipDuplicates: true });
     }
     await tx.city.update({
       where: { id: cityId },
-      data: { tileZoom: TILE_ZOOM, tilesReady: batch.next === null, tileNextX: batch.next?.x ?? null, tileNextY: batch.next?.y ?? null },
+      data: {
+        ...(!savedRunnable && snapshot ? { runnableTiles: snapshot } : {}),
+        tileZoom: TILE_ZOOM, tilesReady: batch.next === null, tileNextX: batch.next?.x ?? null, tileNextY: batch.next?.y ?? null,
+      },
     });
     return { done: batch.next === null };
   }, { timeout: 20_000 });
